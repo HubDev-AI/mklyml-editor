@@ -1,0 +1,5 @@
+.history
+.DS_Store
+.env
+sessions
+node_modules
