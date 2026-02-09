@@ -18,6 +18,11 @@ export function PreviewPane() {
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  useEffect(() => {
+    const sync = syncRef.current;
+    return () => sync.destroy();
+  }, []);
+
   // Write HTML to preview iframe imperatively (preserves scroll position)
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -45,12 +50,13 @@ export function PreviewPane() {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
     if (viewMode !== 'preview') return;
-    iframe.contentWindow.postMessage({ type: 'mkly:highlight', line: activeBlockLine }, '*');
+    iframe.contentWindow.postMessage({ type: 'mkly:highlight', line: activeBlockLine }, window.location.origin);
   }, [activeBlockLine, viewMode]);
 
   // Listen for click messages from preview iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
       if (e.data && e.data.type === 'mkly:click' && typeof e.data.line === 'number') {
         useEditorStore.getState().focusBlock(e.data.line, 'preview');
       }

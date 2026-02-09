@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { mkly, htmlToMkly, CORE_KIT, createCompletionData } from '@milkly/mkly';
+import { mkly, htmlToMkly, CORE_KIT, createCompletionData, escapeHtml } from '@milkly/mkly';
 import type { ParseError } from '@milkly/mkly';
 import { NEWSLETTER_KIT } from '@mkly-kits/newsletter';
 import { emailPlugin } from '@mkly-plugins/email';
@@ -155,7 +155,7 @@ export function useCompile() {
         );
         setSourceMap(result.sourceMap ?? null);
       } catch (e) {
-        setHtml(`<pre style="color:red;padding:16px;">${String(e)}</pre>`);
+        setHtml(`<pre style="color:red;padding:16px;">${escapeHtml(String(e))}</pre>`);
         setErrors([]);
         setSourceMap(null);
       }

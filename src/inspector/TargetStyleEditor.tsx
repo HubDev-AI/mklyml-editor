@@ -11,15 +11,6 @@ interface TargetStyleEditorProps {
   onPropertyChange: (key: string, value: string) => void;
 }
 
-const COMMON_PROPS = [
-  { key: 'margin', label: 'Margin', type: 'spacing' },
-  { key: 'padding', label: 'Padding', type: 'spacing' },
-  { key: 'textAlign', label: 'Align', type: 'align' },
-  { key: 'color', label: 'Color', type: 'color' },
-  { key: 'borderRadius', label: 'Radius', type: 'text' },
-  { key: 'opacity', label: 'Opacity', type: 'range' },
-] as const;
-
 export function TargetStyleEditor({ targets, properties, onPropertyChange }: TargetStyleEditorProps) {
   const [collapsed, setCollapsed] = useState(true);
   const [activeTarget, setActiveTarget] = useState<string | null>(null);

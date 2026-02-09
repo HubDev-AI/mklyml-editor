@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { BlockDocs } from '@milkly/mkly';
 import { KitBadge } from '../ui/kit-badge';
@@ -229,21 +229,43 @@ export function BlockHelpPopover({ docs, blockName, kitName, anchorEl, onClose }
         )}
 
         {tab === 'preview' && (
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 6,
-              background: 'white',
-              border: '1px solid var(--ed-border)',
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: '#1a1a1a',
-            }}
-            dangerouslySetInnerHTML={{ __html: docs.htmlPreview }}
-          />
+          <PreviewIframe html={docs.htmlPreview} />
         )}
       </div>
     </div>,
     document.body,
+  );
+}
+
+function PreviewIframe({ html }: { html: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const writeContent = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;}</style></head><body>${html}</body></html>`);
+    doc.close();
+  }, [html]);
+
+  useEffect(() => {
+    writeContent();
+  }, [writeContent]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title="Block preview"
+      sandbox="allow-same-origin"
+      style={{
+        width: '100%',
+        minHeight: 80,
+        borderRadius: 6,
+        background: 'white',
+        border: '1px solid var(--ed-border)',
+      }}
+    />
   );
 }

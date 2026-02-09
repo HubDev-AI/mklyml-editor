@@ -50,21 +50,64 @@ export function resolveBlockLine(
 }
 
 /**
- * Find the character offset in prettified HTML for a given block line.
- * Uses the `data-mkly-line="N"` attribute embedded in compiled HTML.
+ * Find the character range in prettified HTML for a given block line.
+ * Locates the opening tag with `data-mkly-line="N"` and walks forward
+ * to the matching closing tag so the entire element is highlighted.
  */
 export function findHtmlPositionForBlock(
   blockLine: number,
   htmlText: string,
 ): { from: number; to: number } | null {
   const searchStr = `data-mkly-line="${blockLine}"`;
-  const idx = htmlText.indexOf(searchStr);
-  if (idx === -1) return null;
+  const attrIdx = htmlText.indexOf(searchStr);
+  if (attrIdx === -1) return null;
 
-  // Find the end of this block's HTML (next data-mkly-line or end of text)
-  const nextIdx = htmlText.indexOf('data-mkly-line="', idx + searchStr.length);
+  // Walk back to find the `<` that opens this tag
+  let from = attrIdx;
+  while (from > 0 && htmlText[from] !== '<') from--;
+
+  // Extract the tag name from the opening tag
+  const tagMatch = htmlText.slice(from).match(/^<(\w+)/);
+  if (!tagMatch) return { from, to: htmlText.length };
+
+  const tagName = tagMatch[1];
+  const closeTag = `</${tagName}>`;
+
+  // Walk forward from after the opening tag, tracking depth to find the matching close
+  let depth = 1;
+  let pos = htmlText.indexOf('>', from) + 1;
+  if (pos === 0) return { from, to: htmlText.length };
+
+  // Check for self-closing tag
+  if (htmlText[pos - 2] === '/') return { from, to: pos };
+
+  const openPattern = new RegExp(`<${tagName}[\\s>]`, 'g');
+
+  while (pos < htmlText.length && depth > 0) {
+    const nextClose = htmlText.indexOf(closeTag, pos);
+    if (nextClose === -1) break;
+
+    // Count any same-tag opens between pos and nextClose
+    openPattern.lastIndex = pos;
+    let m: RegExpExecArray | null;
+    while ((m = openPattern.exec(htmlText)) !== null && m.index < nextClose) {
+      // Skip self-closing
+      const endOfTag = htmlText.indexOf('>', m.index);
+      if (endOfTag !== -1 && htmlText[endOfTag - 1] === '/') continue;
+      depth++;
+    }
+
+    depth--;
+    if (depth === 0) {
+      return { from, to: nextClose + closeTag.length };
+    }
+    pos = nextClose + closeTag.length;
+  }
+
+  // Fallback: couldn't find matching close, extend to next block or end
+  const nextIdx = htmlText.indexOf('data-mkly-line="', attrIdx + searchStr.length);
   const to = nextIdx !== -1 ? nextIdx : htmlText.length;
-  return { from: idx, to };
+  return { from, to };
 }
 
 /**

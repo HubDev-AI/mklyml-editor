@@ -61,6 +61,7 @@ export function UsagePreview({ usage, htmlPreview }: UsagePreviewProps) {
         <iframe
           ref={iframeRef}
           title="Block preview"
+          sandbox="allow-same-origin"
           style={{
             width: '100%',
             minHeight: 80,

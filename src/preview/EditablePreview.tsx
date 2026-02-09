@@ -7,6 +7,7 @@ import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 
 const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
+const SKIP_TYPES = new Set(['use', 'meta', 'theme', 'style']);
 
 export function EditablePreview() {
   const html = useEditorStore((s) => s.html);
@@ -21,6 +22,7 @@ export function EditablePreview() {
   const isEditingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const lastHtmlRef = useRef('');
+  const handleInputRef = useRef<() => void>(() => {});
 
   const writeToIframe = useCallback((content: string) => {
     const iframe = iframeRef.current;
@@ -52,7 +54,7 @@ export function EditablePreview() {
     // Failsafe: release scrollLock after 100ms in case rAF doesn't fire
     setTimeout(() => setScrollLock(false), 100);
 
-    doc.body.addEventListener('input', handleInput);
+    doc.body.addEventListener('input', () => handleInputRef.current());
     // Use mousedown instead of click — click doesn't fire reliably on first
     // interaction with a contenteditable iframe (browser focuses iframe first)
     doc.body.addEventListener('mousedown', (e: MouseEvent) => {
@@ -78,8 +80,6 @@ export function EditablePreview() {
       }
     });
   }, []);
-
-  const SKIP_TYPES = new Set(['use', 'meta', 'theme', 'style']);
 
   const handleInput = useCallback(() => {
     isEditingRef.current = true;
@@ -187,6 +187,7 @@ export function EditablePreview() {
       }, 200);
     }, 300);
   }, [setSource]);
+  handleInputRef.current = handleInput;
 
   useEffect(() => {
     if (isEditingRef.current) return;

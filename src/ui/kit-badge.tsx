@@ -26,7 +26,7 @@ export function KitBadge({ kit, size = 'sm' }: KitBadgeProps) {
         alignItems: 'center',
         padding: isSm ? '1px 6px' : '1px 8px',
         borderRadius: 10,
-        fontSize: isSm ? 9 : 9,
+        fontSize: isSm ? 9 : 10,
         fontWeight: 700,
         letterSpacing: '0.04em',
         textTransform: 'uppercase',

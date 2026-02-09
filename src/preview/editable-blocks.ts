@@ -71,19 +71,6 @@ export function makeBlocksEditable(doc: Document): void {
   }
 }
 
-export function cleanEditableAttributes(doc: Document): void {
-  const editables = doc.querySelectorAll('[data-mkly-editable]');
-  for (const el of editables) {
-    el.removeAttribute('contenteditable');
-    el.removeAttribute('data-mkly-editable');
-  }
-  const nonEditables = doc.querySelectorAll('[contenteditable="false"]');
-  for (const el of nonEditables) {
-    el.removeAttribute('contenteditable');
-    (el as HTMLElement).style.opacity = '';
-  }
-}
-
 export const EDIT_MODE_CSS = `
 [data-mkly-editable]:focus {
   outline: 2px solid rgba(59, 130, 246, 0.5);

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useEditorStore } from '../store/editor-store';
 
 export function StatusBar() {
@@ -8,7 +9,7 @@ export function StatusBar() {
   const outputMode = useEditorStore((s) => s.outputMode);
 
   const blockCount = (source.match(/^--- \w/gm) ?? []).length;
-  const htmlSize = html ? new Blob([html]).size : 0;
+  const htmlSize = useMemo(() => html ? new Blob([html]).size : 0, [html]);
   const errorCount = errors.filter((e) => e.severity === 'error').length;
   const warnCount = errors.filter((e) => e.severity === 'warning').length;
 

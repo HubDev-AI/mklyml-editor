@@ -71,7 +71,7 @@ function BlockCard({
               style={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: '#fff',
+                color: 'var(--ed-text)',
                 letterSpacing: '-0.01em',
               }}
             >
@@ -136,7 +136,7 @@ function ExpandedDocs({ docs }: { docs: BlockDocs }) {
         padding: '10px 14px 14px',
         borderTop: '1px solid var(--ed-border)',
         fontSize: 12,
-        color: '#fff',
+        color: 'var(--ed-text)',
         lineHeight: 1.6,
       }}
     >
