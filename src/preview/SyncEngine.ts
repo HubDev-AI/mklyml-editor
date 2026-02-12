@@ -1,33 +1,34 @@
-import { htmlToMkly, CORE_KIT } from '@milkly/mkly';
-import { NEWSLETTER_KIT } from '@mkly-kits/newsletter';
+import { reverseToMkly, ensurePreamble } from './reverse-helpers';
 
 export interface SyncResult {
-  html?: string;
   source?: string;
   error?: string;
+}
+
+export interface ReverseOptions {
+  preservePreambleFrom?: string;
 }
 
 export class SyncEngine {
   private reverseTimer: ReturnType<typeof setTimeout> | undefined;
 
-  reverseConvert(html: string): SyncResult {
+  reverseConvert(html: string, opts?: ReverseOptions): SyncResult {
     try {
-      // Strip source map attributes before reverse conversion (preserve data-mkly-styles for style round-trip)
-      const cleanHtml = html.replace(/\s+data-mkly-(?!styles)[\w-]+="[^"]*"/g, '');
-      const source = htmlToMkly(cleanHtml, {
-        kits: { core: CORE_KIT, newsletter: NEWSLETTER_KIT },
-      });
+      let source = reverseToMkly(html);
+      if (opts?.preservePreambleFrom) {
+        source = ensurePreamble(source, opts.preservePreambleFrom);
+      }
       return { source };
     } catch (e) {
       return { error: `Reverse conversion failed: ${String(e)}` };
     }
   }
 
-  debouncedReverse(html: string, callback: (result: SyncResult) => void) {
+  debouncedReverse(html: string, callback: (result: SyncResult) => void, debounceMs = 400, opts?: ReverseOptions) {
     clearTimeout(this.reverseTimer);
     this.reverseTimer = setTimeout(() => {
-      callback(this.reverseConvert(html));
-    }, 400);
+      callback(this.reverseConvert(html, opts));
+    }, debounceMs);
   }
 
   destroy() {

@@ -41,7 +41,8 @@ const highlightField = StateField.define<DecorationSet>({
         return Decoration.set([highlightLineDeco.range(line.from)]);
       }
     }
-    return decos.map(tr.changes);
+    if (tr.docChanged) return Decoration.none;
+    return decos;
   },
   provide: (f) => EditorView.decorations.from(f),
 });

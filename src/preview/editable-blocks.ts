@@ -1,9 +1,10 @@
 const TEXT_EDITABLE = new Set([
-  'mkly-core-text', 'mkly-core-heading', 'mkly-newsletter-intro',
-  'mkly-newsletter-personalNote', 'mkly-newsletter-outro',
-  'mkly-newsletter-quickHits', 'mkly-newsletter-recommendations',
-  'mkly-newsletter-community', 'mkly-newsletter-tipOfTheDay',
-  'mkly-newsletter-custom', 'mkly-core-footer', 'mkly-core-list',
+  'mkly-core-text', 'mkly-core-heading', 'mkly-core-html',
+  'mkly-newsletter-intro', 'mkly-newsletter-personalNote',
+  'mkly-newsletter-outro', 'mkly-newsletter-quickHits',
+  'mkly-newsletter-recommendations', 'mkly-newsletter-community',
+  'mkly-newsletter-tipOfTheDay', 'mkly-newsletter-custom',
+  'mkly-core-footer', 'mkly-core-list',
 ]);
 
 const MIXED_EDITABLE = new Set([

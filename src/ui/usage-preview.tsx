@@ -1,29 +1,42 @@
 import { useState, useRef, useEffect } from 'react';
+import { useEditorStore } from '../store/editor-store';
 
 interface UsagePreviewProps {
   usage: string;
   htmlPreview?: string;
 }
 
+function getThemeColors(el: Element): { bg: string; fg: string } {
+  const styles = getComputedStyle(el);
+  return {
+    bg: styles.getPropertyValue('--ed-surface').trim() || '#fff',
+    fg: styles.getPropertyValue('--ed-text').trim() || '#222',
+  };
+}
+
 export function UsagePreview({ usage, htmlPreview }: UsagePreviewProps) {
   const [tab, setTab] = useState<'mkly' | 'preview'>('mkly');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const theme = useEditorStore((s) => s.theme);
 
   useEffect(() => {
     if (tab !== 'preview' || !htmlPreview) return;
     const iframe = iframeRef.current;
-    if (!iframe) return;
+    const container = containerRef.current;
+    if (!iframe || !container) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
+    const { bg, fg } = getThemeColors(container);
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.5;color:#222;}</style></head><body>${htmlPreview}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.5;color:${fg};background:${bg};}</style></head><body>${htmlPreview}</body></html>`);
     doc.close();
-  }, [tab, htmlPreview]);
+  }, [tab, htmlPreview, theme]);
 
   const showTabs = !!htmlPreview;
 
   return (
-    <div>
+    <div ref={containerRef}>
       {showTabs && (
         <div
           style={{
@@ -67,7 +80,7 @@ export function UsagePreview({ usage, htmlPreview }: UsagePreviewProps) {
             minHeight: 80,
             border: '1px solid var(--ed-border)',
             borderRadius: 6,
-            background: 'white',
+            background: 'var(--ed-surface)',
           }}
         />
       )}

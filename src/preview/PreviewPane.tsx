@@ -65,11 +65,23 @@ export function PreviewPane() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
+  const lastCompiledRef = useRef('');
+  useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);
+
   const handleHtmlChange = useCallback((newHtml: string) => {
     syncRef.current.debouncedReverse(newHtml, (result) => {
-      if (result.source) {
-        setSource(result.source);
-        setSyncError(null);
+      if (result.source !== undefined) {
+        const currentSource = useEditorStore.getState().source;
+        if (result.source !== currentSource) {
+          setSource(result.source);
+          setSyncError(null);
+        } else if (newHtml !== lastCompiledRef.current) {
+          // Source unchanged but HTML differs from compiled — edit was lost
+          setSyncError('Edit was not applied — this change is not supported in the current block type');
+        } else {
+          // HTML matches compiled output (user reverted) — clear warning
+          setSyncError(null);
+        }
       } else if (result.error) {
         setSyncError(result.error);
       }
@@ -93,21 +105,20 @@ export function PreviewPane() {
           display: viewMode === 'preview' ? 'block' : 'none',
         }}
       />
-      {viewMode === 'edit' && <EditablePreview />}
+      {viewMode === 'edit' && <EditablePreview onSyncError={setSyncError} />}
       <div style={{ display: viewMode === 'html' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
-        <HtmlSourceEditor value={prettyHtml} onChange={handleHtmlChange} />
         <div style={{
-          padding: '4px 14px',
+          padding: '6px 14px',
           background: 'var(--ed-warning-bg, rgba(234, 179, 8, 0.1))',
-          borderTop: '1px solid var(--ed-border)',
-          fontSize: 11,
+          borderBottom: '1px solid var(--ed-border)',
+          fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
           color: 'var(--ed-warning-text, #ca8a04)',
           flexShrink: 0,
-          opacity: 0.8,
         }}>
-          HTML editing is experimental — changes may not round-trip perfectly back to mkly
+          Experimental: Direct HTML edits may lose formatting when converted back to mkly
         </div>
+        <HtmlSourceEditor value={prettyHtml} onChange={handleHtmlChange} />
       </div>
       {syncError && (
         <div style={{

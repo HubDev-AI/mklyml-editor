@@ -132,6 +132,7 @@ function BlockCard({
 function ExpandedDocs({ docs }: { docs: BlockDocs }) {
   return (
     <div
+      onClick={(e) => e.stopPropagation()}
       style={{
         padding: '10px 14px 14px',
         borderTop: '1px solid var(--ed-border)',
