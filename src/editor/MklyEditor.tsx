@@ -284,24 +284,49 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     const blockName = e.dataTransfer.getData('application/x-mkly-block');
     if (!blockName) return;
 
+    // Auto-add --- use: directive if the block's kit isn't imported
+    const kitName = completionData.blockKits.get(blockName);
+    let usePrefix = '';
+    if (kitName) {
+      const doc = view.state.doc.toString();
+      const hasUse = doc.split('\n').some(
+        (l) => l.match(new RegExp(`^---\\s+use:\\s*${kitName}\\s*$`)),
+      );
+      if (!hasUse) {
+        // Find insertion point: after last --- use: or --- meta line, or at top
+        const lines = doc.split('\n');
+        let insertAfterLine = 0;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^---\s+(use|meta|theme):/)) {
+            insertAfterLine = i + 1;
+          }
+        }
+        const insertPos = insertAfterLine === 0 ? 0 : view.state.doc.line(insertAfterLine).to;
+        usePrefix = `\n--- use: ${kitName}`;
+        view.dispatch({ changes: { from: insertPos, insert: usePrefix } });
+      }
+    }
+
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
     if (pos === null) return;
 
-    const line = view.state.doc.lineAt(pos);
+    // Re-read line position after potential use-directive insertion
+    const currentView = viewRef.current;
+    if (!currentView) return;
+    const adjustedPos = Math.min(pos + usePrefix.length, currentView.state.doc.length);
+    const line = currentView.state.doc.lineAt(adjustedPos);
     const insertText = `\n--- ${blockName}\n`;
-    view.dispatch({
+    currentView.dispatch({
       changes: { from: line.to, insert: insertText },
     });
 
-    // After inserting "\n--- blockName\n" at line.to, the --- line is line.number + 1
     requestAnimationFrame(() => {
       const newView = viewRef.current;
       if (!newView) return;
-      // Recalculate: find the inserted --- line
       const newLineNum = Math.min(line.number + 1, newView.state.doc.lines);
       useEditorStore.getState().focusBlock(newLineNum, 'block-dock');
     });
-  }, []);
+  }, [completionData]);
 
   return (
     <>

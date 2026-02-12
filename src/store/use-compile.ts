@@ -155,7 +155,7 @@ export function useCompile() {
         );
         setSourceMap(result.sourceMap ?? null);
       } catch (e) {
-        setHtml(`<pre style="color:red;padding:16px;">${escapeHtml(String(e))}</pre>`);
+        setHtml(`<html><body style="margin:0;background:#fff;color:#dc2626;font-family:monospace;padding:16px;"><pre style="white-space:pre-wrap;">${escapeHtml(String(e))}</pre></body></html>`);
         setErrors([]);
         setSourceMap(null);
       }

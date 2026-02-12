@@ -155,9 +155,12 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
   }, [viewMode]);
 
   // React to activeBlockLine: ALWAYS highlight, CONDITIONAL scroll
+  // Skip when hidden — dispatching scrollIntoView to a hidden CM6 instance
+  // creates a pendingScrollTarget that crashes on the next document change.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || activeBlockLine === null) return;
+    if (viewMode !== 'html') return;
     if (focusOrigin === 'html') return;
     if (focusVersion === lastFocusVersionRef.current) return;
     lastFocusVersionRef.current = focusVersion;
@@ -188,7 +191,7 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
       view.dispatch({ effects: setHtmlHighlightEffect.of(null) });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [activeBlockLine, focusOrigin, focusVersion, focusIntent, scrollLock]);
+  }, [activeBlockLine, focusOrigin, focusVersion, focusIntent, scrollLock, viewMode]);
 
   return (
     <div

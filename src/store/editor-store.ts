@@ -117,7 +117,7 @@ title: The Weekly Digest
 --- core/hero
 image: https://images.unsplash.com/photo-1550547660-d9450f859349?w=1200
 alt: Weekly digest hero
-@bg: #fafafa
+@bg: #0e111c
 @borderRadius: 12px
 
 # This Week in Tech
@@ -128,7 +128,8 @@ Your curated roundup of what matters.
 
 Welcome back! Here's everything you need to know this week, from AI breakthroughs to design tools that'll make your workflow smoother.
 
---- core/section: Features
+--- core/section
+title: Features
 
 --- core/card
 image: https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400
@@ -147,7 +148,8 @@ Looks like a config file. Zero learning curve. Edit content without touching HTM
 
 --- /core/section
 
---- newsletter/category: Quick Reads
+--- newsletter/category
+title: Quick Reads
 
 --- newsletter/item
 source: The Verge

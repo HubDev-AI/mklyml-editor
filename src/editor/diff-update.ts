@@ -40,12 +40,29 @@ export function computeMinimalChanges(
 }
 
 /**
+ * Clear any stale pendingScrollTarget on a CodeMirror EditorView.
+ *
+ * CM6 stores a pendingScrollTarget when scrollIntoView or scrollSnapshot
+ * is dispatched to a hidden editor. On the next dispatch(), CM6 tries to
+ * map that target through the changeset. If the document shrank, the old
+ * position is out of range and throws an unrecoverable RangeError — which
+ * also leaves pendingScrollTarget intact, crashing ALL future dispatches.
+ *
+ * This is the only way to recover: clear the private property directly.
+ */
+function clearPendingScroll(view: EditorView): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (view as any).pendingScrollTarget = null;
+}
+
+/**
  * Apply an external value update to a CodeMirror EditorView using minimal
  * diff changes + scrollSnapshot for zero-jump updates.
  *
  * - Minimal diff: only the changed region is replaced, so CM6 naturally
  *   preserves cursor position and scroll for unchanged lines.
  * - scrollSnapshot: CM6's built-in scroll anchor, mapped through changes.
+ *   Only used when the editor is visible (hidden editors can't scroll).
  * - No forced cursor move: CM6 maps the cursor through changes automatically.
  *
  * Returns true if changes were applied, false if doc was already up to date.
@@ -58,16 +75,25 @@ export function applyExternalUpdate(
   const change = computeMinimalChanges(currentDoc, newValue);
   if (!change) return false;
 
-  // Capture scroll snapshot — CM6 maps it through the changes automatically
-  const scrollEffect = view.scrollSnapshot();
+  // Clear any stale scroll target from prior dispatches to a hidden editor
+  clearPendingScroll(view);
 
-  // Let CM6 map cursor through the change naturally (no forced selection).
-  // The cursor stays in place if outside the changed region, or gets pushed
-  // forward/backward if inside it — exactly what we want.
-  view.dispatch({
-    changes: change,
-    effects: scrollEffect,
-  });
+  const isVisible = view.dom.offsetParent !== null;
+
+  try {
+    if (isVisible) {
+      const scrollEffect = view.scrollSnapshot();
+      view.dispatch({ changes: change, effects: scrollEffect });
+    } else {
+      view.dispatch({ changes: change });
+    }
+  } catch {
+    // Full replacement fallback
+    clearPendingScroll(view);
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: newValue },
+    });
+  }
 
   return true;
 }
