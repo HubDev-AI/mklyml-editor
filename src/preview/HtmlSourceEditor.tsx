@@ -7,6 +7,7 @@ import { mklyThemeDark } from '../editor/mkly-theme-dark';
 import { mklyThemeLight } from '../editor/mkly-theme-light';
 import { useEditorStore } from '../store/editor-store';
 import { useExternalSync } from '../hooks/use-external-sync';
+import { clearPendingScroll } from '../editor/safe-dispatch';
 import { findHtmlPositionForBlock, shouldScrollToBlock } from '../store/selection-orchestrator';
 
 const setHtmlHighlightEffect = StateEffect.define<{ from: number; to: number } | null>();
@@ -174,6 +175,7 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
       if (!pos) return;
 
       isExternalRef.current = true;
+      clearPendingScroll(v);
 
       v.dispatch({
         effects: setHtmlHighlightEffect.of({ from: pos.from, to: pos.to }),
@@ -188,6 +190,7 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
       isExternalRef.current = false;
     });
     const timer = setTimeout(() => {
+      clearPendingScroll(view);
       view.dispatch({ effects: setHtmlHighlightEffect.of(null) });
     }, 2000);
     return () => clearTimeout(timer);

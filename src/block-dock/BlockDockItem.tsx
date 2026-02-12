@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import type { BlockDockEntry } from './use-block-dock';
 import { BlockHelpPopover } from './BlockHelpPopover';
-import type { CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
 
 interface BlockDockItemProps {
   block: BlockDockEntry;
@@ -69,7 +69,7 @@ export function BlockDockItem({ block, selected, helpOpen, completionData, onTog
               color: selected ? 'var(--ed-accent)' : 'var(--ed-text)',
             }}
           >
-            {block.name.includes('/') ? block.name.split('/')[1] : block.name}
+            {getBlockDisplayName(block.name, block.docs)}
             {block.kit && (
               <span style={{
                 fontSize: 9,

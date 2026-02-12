@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { CompletionData, BlockDocs } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData, type BlockDocs } from '@milkly/mkly';
 import { useEditorStore } from '../store/editor-store';
 
 export interface BlockDockEntry {
@@ -53,7 +53,8 @@ export function useBlockDock(completionData: CompletionData) {
     return allBlocks.filter(
       (b) =>
         b.name.toLowerCase().includes(q) ||
-        b.description.toLowerCase().includes(q),
+        b.description.toLowerCase().includes(q) ||
+        getBlockDisplayName(b.name, b.docs).toLowerCase().includes(q),
     );
   }, [allBlocks, query]);
 

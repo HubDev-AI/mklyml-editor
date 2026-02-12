@@ -72,6 +72,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
         <KitInfoPanel
           kitName={cursorBlock.label ?? ''}
           kitInfo={completionData.kitInfo.get(cursorBlock.label ?? '')}
+          completionData={completionData}
         />
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
       </div>

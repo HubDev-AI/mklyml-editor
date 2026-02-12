@@ -5,6 +5,7 @@ import { EditablePreview } from './EditablePreview';
 import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
+import { IFRAME_DARK_CSS } from './iframe-dark-css';
 
 export function PreviewPane() {
   const html = useEditorStore((s) => s.html);
@@ -13,6 +14,7 @@ export function PreviewPane() {
   const setSource = useEditorStore((s) => s.setSource);
   const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
+  const theme = useEditorStore((s) => s.theme);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
@@ -34,6 +36,24 @@ export function PreviewPane() {
     doc.open();
     doc.write(html);
     doc.close();
+
+    // Inject dark mode styles
+    const isDark = useEditorStore.getState().theme === 'dark';
+    if (isDark) {
+      const style = doc.createElement('style');
+      style.textContent = IFRAME_DARK_CSS;
+      (doc.head ?? doc.documentElement)?.appendChild(style);
+    }
+
+    // Intercept link clicks — open in new browser tab instead of navigating the iframe
+    doc.addEventListener('click', (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest('a');
+      if (a?.href) {
+        e.preventDefault();
+        window.open(a.href, '_blank', 'noopener');
+      }
+    });
+
     if (anchor) {
       requestAnimationFrame(() => {
         restoreScrollAnchor(doc, anchor);
@@ -43,7 +63,7 @@ export function PreviewPane() {
       requestAnimationFrame(() => setScrollLock(false));
     }
     setTimeout(() => setScrollLock(false), 100);
-  }, [html, viewMode, setScrollLock]);
+  }, [html, viewMode, setScrollLock, theme]);
 
   // Send highlight message to preview iframe when active block changes or when switching to this tab
   useEffect(() => {
@@ -101,7 +121,7 @@ export function PreviewPane() {
         style={{
           flex: 1,
           border: 'none',
-          background: 'white',
+          background: theme === 'dark' ? '#0a0a0a' : 'white',
           display: viewMode === 'preview' ? 'block' : 'none',
         }}
       />

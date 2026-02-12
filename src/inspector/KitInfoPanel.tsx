@@ -1,11 +1,12 @@
-import type { KitInfo } from '@milkly/mkly';
+import { getBlockDisplayName, type KitInfo, type CompletionData } from '@milkly/mkly';
 
 interface KitInfoPanelProps {
   kitName: string;
   kitInfo: KitInfo | undefined;
+  completionData?: CompletionData;
 }
 
-export function KitInfoPanel({ kitName, kitInfo }: KitInfoPanelProps) {
+export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelProps) {
   if (!kitInfo) {
     return (
       <div style={{
@@ -85,7 +86,6 @@ export function KitInfoPanel({ kitName, kitInfo }: KitInfoPanelProps) {
                 key={name}
                 style={{
                   fontSize: 10,
-                  fontFamily: "'JetBrains Mono', monospace",
                   background: 'var(--ed-surface)',
                   border: '1px solid var(--ed-border)',
                   borderRadius: 3,
@@ -93,7 +93,7 @@ export function KitInfoPanel({ kitName, kitInfo }: KitInfoPanelProps) {
                   color: 'var(--ed-text)',
                 }}
               >
-                {name}
+                {getBlockDisplayName(name, completionData?.docs.get(name))}
               </span>
             ))}
           </div>

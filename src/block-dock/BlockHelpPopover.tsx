@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { BlockDocs } from '@milkly/mkly';
+import { getBlockDisplayName, type BlockDocs } from '@milkly/mkly';
 import { KitBadge } from '../ui/kit-badge';
+import { useEditorStore } from '../store/editor-store';
+import { IFRAME_DARK_CSS } from '../preview/iframe-dark-css';
 
 interface BlockHelpPopoverProps {
   docs: BlockDocs;
@@ -87,7 +89,7 @@ export function BlockHelpPopover({ docs, blockName, kitName, anchorEl, onClose }
       <div style={{ padding: '10px 14px 0', borderBottom: '1px solid var(--ed-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ed-text)' }}>
-            {blockName}
+            {getBlockDisplayName(blockName, docs)}
           </div>
           {kitName && <KitBadge kit={kitName} size="md" />}
         </div>
@@ -239,16 +241,19 @@ export function BlockHelpPopover({ docs, blockName, kitName, anchorEl, onClose }
 
 function PreviewIframe({ html }: { html: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const theme = useEditorStore((s) => s.theme);
+  const isDark = theme === 'dark';
 
   const writeContent = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
+    const darkCss = isDark ? IFRAME_DARK_CSS : '';
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;}</style></head><body>${html}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;color:${isDark ? '#e5e5e5' : '#1a1a1a'};}a{pointer-events:none;}${darkCss}</style></head><body>${html}</body></html>`);
     doc.close();
-  }, [html]);
+  }, [html, isDark]);
 
   useEffect(() => {
     writeContent();
@@ -263,7 +268,7 @@ function PreviewIframe({ html }: { html: string }) {
         width: '100%',
         minHeight: 80,
         borderRadius: 6,
-        background: 'white',
+        background: isDark ? '#0a0a0a' : 'white',
         border: '1px solid var(--ed-border)',
       }}
     />

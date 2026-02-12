@@ -1,198 +1,134 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { useBlockDock, type BlockDockEntry } from './use-block-dock';
 import { IconSearch } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
-import { UsagePreview } from '../ui/usage-preview';
-import type { CompletionData, BlockDocs } from '@milkly/mkly';
+import { BlockHelpPopover } from './BlockHelpPopover';
+import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
 
 interface BlockSidebarProps {
   completionData: CompletionData;
 }
 
-function BlockCard({
+function BlockChip({
   block,
-  expanded,
-  onToggle,
+  helpOpen,
+  onToggleHelp,
+  onCloseHelp,
   onDragStart,
   completionData,
 }: {
   block: BlockDockEntry;
-  expanded: boolean;
-  onToggle: () => void;
+  helpOpen: boolean;
+  onToggleHelp: () => void;
+  onCloseHelp: () => void;
   onDragStart: (e: React.DragEvent) => void;
   completionData: CompletionData;
 }) {
+  const helpRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
   const Icon = getBlockIcon(block.name, completionData);
   const iconColor = getBlockIconColor(block.name, completionData);
-  const shortName = block.name.includes('/') ? block.name.split('/')[1] : block.name;
+  const displayName = getBlockDisplayName(block.name, block.docs);
 
   return (
     <div
+      ref={helpRef}
       draggable
       onDragStart={onDragStart}
-      onClick={onToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onContextMenu={(e) => {
+        if (block.docs) {
+          e.preventDefault();
+          onToggleHelp();
+        }
+      }}
       style={{
-        borderRadius: 10,
-        border: '1px solid var(--ed-border)',
-        background: 'var(--ed-surface)',
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 10px',
+        borderRadius: 20,
+        background: hovered
+          ? 'var(--ed-surface-alt)'
+          : helpOpen
+            ? 'var(--ed-surface-alt)'
+            : 'var(--ed-surface)',
+        border: `1px solid ${helpOpen ? 'var(--ed-accent)' : hovered ? 'var(--ed-border-strong)' : 'var(--ed-border)'}`,
         cursor: 'grab',
-        transition: 'border-color 0.15s, background 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--ed-border-strong)';
-        e.currentTarget.style.background = 'var(--ed-surface-alt)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--ed-border)';
-        e.currentTarget.style.background = 'var(--ed-surface)';
+        transition: 'all 0.15s ease',
+        userSelect: 'none',
       }}
     >
-      {/* Main row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 12px' }}>
-        <div
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          borderRadius: 5,
+          background: iconColor.bg,
+          color: iconColor.color,
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={12} />
+      </div>
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--ed-text)',
+          whiteSpace: 'nowrap',
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {displayName}
+      </span>
+      {block.kit && <KitBadge kit={block.kit} size="sm" />}
+
+      {block.docs && (hovered || helpOpen) && (
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleHelp();
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: iconColor.bg,
-            color: iconColor.color,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            border: 'none',
+            background: helpOpen ? 'var(--ed-accent)' : 'rgba(128,128,128,0.15)',
+            color: helpOpen ? 'white' : 'var(--ed-text-muted)',
+            cursor: 'pointer',
+            fontSize: 9,
+            fontWeight: 700,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            padding: 0,
+            marginLeft: -2,
             flexShrink: 0,
           }}
+          title={`Help: ${block.name}`}
         >
-          <Icon size={18} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: 'var(--ed-text)',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {shortName}
-            </span>
-            {block.kit && <KitBadge kit={block.kit} />}
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: 'var(--ed-text-muted)',
-              lineHeight: 1.4,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {block.description}
-          </div>
-        </div>
-      </div>
-
-      {/* Docs toggle (only if docs exist) */}
-      {block.docs && (
-        <div
-          style={{
-            borderTop: '1px solid var(--ed-border)',
-            padding: '0 14px',
-          }}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggle(); }}
-            style={{
-              width: '100%',
-              padding: '7px 0',
-              border: 'none',
-              background: 'transparent',
-              color: expanded ? 'var(--ed-accent)' : 'var(--ed-text-muted)',
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: 600,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              textAlign: 'left',
-              transition: 'color 0.15s',
-            }}
-          >
-            {expanded ? 'Hide docs' : 'View docs'}
-          </button>
-        </div>
+          ?
+        </button>
       )}
 
-      {expanded && block.docs && <ExpandedDocs docs={block.docs} />}
-    </div>
-  );
-}
-
-function ExpandedDocs({ docs }: { docs: BlockDocs }) {
-  return (
-    <div
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        padding: '10px 14px 14px',
-        borderTop: '1px solid var(--ed-border)',
-        fontSize: 12,
-        color: 'var(--ed-text)',
-        lineHeight: 1.6,
-      }}
-    >
-      <p style={{ margin: '0 0 10px', color: 'var(--ed-text-muted)', fontSize: 12 }}>
-        {docs.summary}
-      </p>
-
-      {docs.usage && (
-        <div style={{ marginBottom: 10 }}>
-          <UsagePreview usage={docs.usage} htmlPreview={docs.htmlPreview} />
-        </div>
-      )}
-
-      {docs.properties && docs.properties.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--ed-text-muted)',
-              marginBottom: 6,
-            }}
-          >
-            Properties
-          </div>
-          {docs.properties.map((p) => (
-            <div key={p.name} style={{ padding: '3px 0' }}>
-              <span
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--ed-accent)',
-                }}
-              >
-                {p.name}{p.required ? '*' : ''}
-              </span>
-              {p.description && (
-                <span style={{ color: 'var(--ed-text-muted)', fontSize: 11, marginLeft: 8 }}>
-                  {p.description}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {docs.tips && docs.tips.length > 0 && (
-        <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: 11, color: 'var(--ed-text-muted)', lineHeight: 1.5 }}>
-          {docs.tips.map((tip, i) => (
-            <li key={i} style={{ marginBottom: 3 }}>{tip}</li>
-          ))}
-        </ul>
+      {helpOpen && block.docs && helpRef.current && (
+        <BlockHelpPopover
+          docs={block.docs}
+          blockName={block.name}
+          kitName={block.kit}
+          anchorEl={helpRef.current}
+          onClose={onCloseHelp}
+        />
       )}
     </div>
   );
@@ -200,7 +136,7 @@ function ExpandedDocs({ docs }: { docs: BlockDocs }) {
 
 export function BlockSidebar({ completionData }: BlockSidebarProps) {
   const { query, setQuery, filtered } = useBlockDock(completionData);
-  const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
+  const [helpBlock, setHelpBlock] = useState<string | null>(null);
 
   const handleDragStart = useCallback((e: React.DragEvent, blockName: string) => {
     e.dataTransfer.setData('application/x-mkly-block', blockName);
@@ -289,28 +225,30 @@ export function BlockSidebar({ completionData }: BlockSidebarProps) {
         </div>
       </div>
 
-      {/* Block list */}
+      {/* Block chips */}
       <div
         style={{
           flex: 1,
           overflow: 'auto',
-          padding: '8px 12px 12px',
+          padding: '10px 12px 12px',
           display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
+          flexWrap: 'wrap',
+          gap: 6,
+          alignContent: 'start',
         }}
       >
         {filtered.length === 0 && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--ed-text-muted)', fontSize: 13 }}>
+          <div style={{ width: '100%', padding: 20, textAlign: 'center', color: 'var(--ed-text-muted)', fontSize: 13 }}>
             No blocks found
           </div>
         )}
         {filtered.map((block) => (
-          <BlockCard
+          <BlockChip
             key={block.name}
             block={block}
-            expanded={expandedBlock === block.name}
-            onToggle={() => setExpandedBlock(expandedBlock === block.name ? null : block.name)}
+            helpOpen={helpBlock === block.name}
+            onToggleHelp={() => setHelpBlock(helpBlock === block.name ? null : block.name)}
+            onCloseHelp={() => setHelpBlock(null)}
             onDragStart={(e) => handleDragStart(e, block.name)}
             completionData={completionData}
           />

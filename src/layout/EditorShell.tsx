@@ -7,6 +7,7 @@ import { BlockDock } from '../block-dock/BlockDock';
 import { BlockSidebar } from '../block-dock/BlockSidebar';
 import { PropertyInspector } from '../inspector/PropertyInspector';
 import { ResizeHandle } from './ResizeHandle';
+import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { useCursorContext } from '../store/use-cursor-context';
 import type { CompletionData } from '@milkly/mkly';
@@ -107,7 +108,9 @@ export function EditorShell({ completionData }: EditorShellProps) {
             minWidth: 0,
           }}
         >
-          <MklyEditor completionData={completionData} />
+          <EditorErrorBoundary name="Code editor">
+            <MklyEditor completionData={completionData} />
+          </EditorErrorBoundary>
         </div>
 
         <ResizeHandle onResize={(d) => handleResize(0, d)} />
@@ -121,7 +124,9 @@ export function EditorShell({ completionData }: EditorShellProps) {
             minWidth: 0,
           }}
         >
-          <PreviewPane />
+          <EditorErrorBoundary name="Preview">
+            <PreviewPane />
+          </EditorErrorBoundary>
         </div>
 
         {!inspectorCollapsed && (
@@ -138,7 +143,9 @@ export function EditorShell({ completionData }: EditorShellProps) {
                 borderLeft: '1px solid var(--ed-border)',
               }}
             >
-              <PropertyInspector cursorBlock={cursorBlock} completionData={completionData} />
+              <EditorErrorBoundary name="Inspector">
+                <PropertyInspector cursorBlock={cursorBlock} completionData={completionData} />
+              </EditorErrorBoundary>
             </div>
           </>
         )}

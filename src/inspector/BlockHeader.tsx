@@ -1,6 +1,6 @@
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
-import type { CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
 
 interface BlockHeaderProps {
   type: string;
@@ -11,7 +11,8 @@ interface BlockHeaderProps {
 }
 
 export function BlockHeader({ type, startLine, endLine, kitName, completionData }: BlockHeaderProps) {
-  const shortName = type.includes('/') ? type.split('/')[1] : type;
+  const docs = completionData?.docs.get(type);
+  const displayName = getBlockDisplayName(type, docs);
   const Icon = getBlockIcon(type, completionData);
   const iconColor = getBlockIconColor(type, completionData);
 
@@ -48,7 +49,7 @@ export function BlockHeader({ type, startLine, endLine, kitName, completionData 
             color: 'var(--ed-text)',
             fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}>
-            {shortName}
+            {displayName}
           </span>
           {kitName && <KitBadge kit={kitName} />}
         </div>

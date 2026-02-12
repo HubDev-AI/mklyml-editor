@@ -13,6 +13,7 @@ import { FormatBar } from '../format-bar/FormatBar';
 import { useEditorStore } from '../store/editor-store';
 import { blockColorPlugin } from './block-color-plugin';
 import { applyExternalUpdate } from './diff-update';
+import { clearPendingScroll } from './safe-dispatch';
 import { shouldScrollToBlock } from '../store/selection-orchestrator';
 import type { CompletionData } from '@milkly/mkly';
 
@@ -222,6 +223,8 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     const lineNum = Math.min(activeBlockLine, view.state.doc.lines);
     if (lineNum < 1) return;
 
+    clearPendingScroll(view);
+
     // ALWAYS highlight
     view.dispatch({
       effects: setHighlightEffect.of(activeBlockLine),
@@ -236,6 +239,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     }
 
     const timer = setTimeout(() => {
+      clearPendingScroll(view);
       view.dispatch({ effects: setHighlightEffect.of(null) });
     }, 2000);
     return () => clearTimeout(timer);

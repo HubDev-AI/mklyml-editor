@@ -6,6 +6,7 @@ import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import { cleanHtmlForReverse, MKLY_KITS, findLineForBlockIndex } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
+import { IFRAME_DARK_CSS } from './iframe-dark-css';
 
 const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
 
@@ -22,6 +23,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
+  const theme = useEditorStore((s) => s.theme);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
   const lastHtmlRef = useRef('');
@@ -41,8 +43,10 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
     setScrollLock(true);
     const anchor = captureScrollAnchor(doc);
+    const isDark = useEditorStore.getState().theme === 'dark';
+    const darkCss = isDark ? IFRAME_DARK_CSS : '';
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
     const finalize = () => {
@@ -61,6 +65,12 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     setTimeout(() => setScrollLock(false), 100);
 
     doc.body.addEventListener('input', () => handleInputRef.current());
+    // Prevent link/button clicks from navigating the iframe — let the user edit the text instead
+    doc.addEventListener('click', (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest('a');
+      if (a) e.preventDefault();
+    });
+
     doc.body.addEventListener('mousedown', (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       let el = target.closest<HTMLElement>('[data-mkly-line]');
@@ -165,10 +175,11 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
   useEffect(() => {
     if (isEditingRef.current) return;
-    if (html === lastHtmlRef.current) return;
+    if (html === lastHtmlRef.current && theme === (iframeRef.current?.dataset.lastTheme ?? 'dark')) return;
     lastHtmlRef.current = html;
+    if (iframeRef.current) iframeRef.current.dataset.lastTheme = theme;
     writeToIframe(html);
-  }, [html, writeToIframe]);
+  }, [html, writeToIframe, theme]);
 
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
@@ -192,7 +203,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       style={{
         flex: 1,
         border: 'none',
-        background: 'white',
+        background: theme === 'dark' ? '#0a0a0a' : 'white',
       }}
     />
   );
