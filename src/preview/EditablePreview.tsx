@@ -3,12 +3,10 @@ import { useEditorStore } from '../store/editor-store';
 import { mkly } from '@milkly/mkly';
 import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
-import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import { cleanHtmlForReverse, MKLY_KITS, findLineForBlockIndex } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-
-const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
+import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
 
 interface EditablePreviewProps {
   onSyncError: (error: string | null) => void;
@@ -71,25 +69,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       if (a) e.preventDefault();
     });
 
-    doc.body.addEventListener('mousedown', (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      let el = target.closest<HTMLElement>('[data-mkly-line]');
-      if (!el) {
-        const blocks = doc.querySelectorAll<HTMLElement>('[data-mkly-line]');
-        for (const block of blocks) {
-          const rect = block.getBoundingClientRect();
-          if (e.clientY >= rect.top && e.clientY <= rect.bottom &&
-              e.clientX >= rect.left && e.clientX <= rect.right) {
-            el = block;
-            break;
-          }
-        }
-      }
-      if (el) {
-        const line = Number(el.dataset.mklyLine);
-        useEditorStore.getState().focusBlock(line, 'edit');
-      }
-    });
+    bindBlockClicks(doc, 'edit');
   }, []);
 
   const handleInput = useCallback(() => {
@@ -184,16 +164,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    doc.querySelectorAll('[data-mkly-active]').forEach((el) => el.removeAttribute('data-mkly-active'));
-    if (activeBlockLine !== null) {
-      const el = findBlockElement(activeBlockLine, doc);
-      if (el) {
-        el.setAttribute('data-mkly-active', '');
-        if (shouldScrollToBlock(focusOrigin, 'edit', focusIntent, scrollLock)) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    }
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock);
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion]);
 
   return (

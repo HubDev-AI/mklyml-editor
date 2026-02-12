@@ -32,6 +32,9 @@ export function PropertyForm({ blockType, properties, completionData, onProperty
           name={prop.label}
           value={properties[prop.label] ?? ''}
           description={prop.description}
+          propType={prop.propType}
+          options={prop.options}
+          optional={prop.optional}
           onChange={(v) => onPropertyChange(prop.label, v)}
         />
       ))}

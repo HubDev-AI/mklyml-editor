@@ -6,6 +6,7 @@ import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
+import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
 
 export function PreviewPane() {
   const html = useEditorStore((s) => s.html);
@@ -13,6 +14,10 @@ export function PreviewPane() {
   const errors = useEditorStore((s) => s.errors);
   const setSource = useEditorStore((s) => s.setSource);
   const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
+  const focusOrigin = useEditorStore((s) => s.focusOrigin);
+  const focusIntent = useEditorStore((s) => s.focusIntent);
+  const focusVersion = useEditorStore((s) => s.focusVersion);
+  const scrollLock = useEditorStore((s) => s.scrollLock);
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const theme = useEditorStore((s) => s.theme);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -37,11 +42,12 @@ export function PreviewPane() {
     doc.write(html);
     doc.close();
 
-    // Inject dark mode styles
+    // Inject highlight + dark mode styles
     const isDark = useEditorStore.getState().theme === 'dark';
-    if (isDark) {
+    const extraCss = ACTIVE_BLOCK_CSS + (isDark ? IFRAME_DARK_CSS : '');
+    if (extraCss) {
       const style = doc.createElement('style');
-      style.textContent = IFRAME_DARK_CSS;
+      style.textContent = extraCss;
       (doc.head ?? doc.documentElement)?.appendChild(style);
     }
 
@@ -54,6 +60,8 @@ export function PreviewPane() {
       }
     });
 
+    bindBlockClicks(doc, 'preview');
+
     if (anchor) {
       requestAnimationFrame(() => {
         restoreScrollAnchor(doc, anchor);
@@ -65,25 +73,13 @@ export function PreviewPane() {
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, setScrollLock, theme]);
 
-  // Send highlight message to preview iframe when active block changes or when switching to this tab
+  // Highlight active block in preview iframe (same logic as edit pane)
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
     if (viewMode !== 'preview') return;
-    iframe.contentWindow.postMessage({ type: 'mkly:highlight', line: activeBlockLine }, window.location.origin);
-  }, [activeBlockLine, viewMode]);
-
-  // Listen for click messages from preview iframe
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.source !== iframeRef.current?.contentWindow) return;
-      if (e.data && e.data.type === 'mkly:click' && typeof e.data.line === 'number') {
-        useEditorStore.getState().focusBlock(e.data.line, 'preview');
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);
