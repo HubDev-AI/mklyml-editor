@@ -73,6 +73,8 @@ export function BlockHelpPopover({ docs, blockName, kitName, anchorEl, onClose }
     <div
       ref={ref}
       className="liquid-glass-overlay"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: 'fixed',
         left: Math.min(x, window.innerWidth - 340),

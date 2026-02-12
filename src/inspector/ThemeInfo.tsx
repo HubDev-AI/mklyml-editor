@@ -108,8 +108,10 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
               <select
                 value={name}
                 onChange={(e) => handleChange(name, e.target.value)}
+                title={availableThemes.find((t) => t.label === name)?.description}
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   background: 'var(--ed-surface)',
                   color: 'var(--ed-text)',
                   border: '1px solid var(--ed-border)',
@@ -121,8 +123,8 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
                 }}
               >
                 {availableThemes.map((t) => (
-                  <option key={t.label} value={t.label}>
-                    {t.label} — {t.description}
+                  <option key={t.label} value={t.label} title={t.description}>
+                    {t.label}
                   </option>
                 ))}
               </select>

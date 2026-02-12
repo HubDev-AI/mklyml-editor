@@ -44,7 +44,7 @@ const HOVER_SCALE_OPTIONS = [
 const CURSOR_OPTIONS = ['default', 'pointer', 'grab', 'text', 'not-allowed', 'crosshair'];
 
 export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const styles: Record<string, string> = {};
   for (const [key, value] of Object.entries(properties)) {

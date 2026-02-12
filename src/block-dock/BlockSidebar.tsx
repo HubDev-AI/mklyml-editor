@@ -25,40 +25,34 @@ function BlockChip({
   onDragStart: (e: React.DragEvent) => void;
   completionData: CompletionData;
 }) {
-  const helpRef = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState(false);
+  const chipRef = useRef<HTMLDivElement>(null);
+  const didDragRef = useRef(false);
   const Icon = getBlockIcon(block.name, completionData);
   const iconColor = getBlockIconColor(block.name, completionData);
   const displayName = getBlockDisplayName(block.name, block.docs);
 
   return (
     <div
-      ref={helpRef}
+      ref={chipRef}
       draggable
-      onDragStart={onDragStart}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onContextMenu={(e) => {
-        if (block.docs) {
-          e.preventDefault();
-          onToggleHelp();
-        }
+      onDragStart={(e) => {
+        didDragRef.current = true;
+        onDragStart(e);
+      }}
+      onMouseDown={() => { didDragRef.current = false; }}
+      onClick={() => {
+        if (!didDragRef.current && block.docs) onToggleHelp();
       }}
       style={{
-        position: 'relative',
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
         padding: '5px 10px',
         borderRadius: 20,
-        background: hovered
-          ? 'var(--ed-surface-alt)'
-          : helpOpen
-            ? 'var(--ed-surface-alt)'
-            : 'var(--ed-surface)',
-        border: `1px solid ${helpOpen ? 'var(--ed-accent)' : hovered ? 'var(--ed-border-strong)' : 'var(--ed-border)'}`,
+        background: helpOpen ? 'var(--ed-surface-alt)' : 'var(--ed-surface)',
+        border: `1px solid ${helpOpen ? 'var(--ed-accent)' : 'var(--ed-border)'}`,
         cursor: 'grab',
-        transition: 'all 0.15s ease',
+        transition: 'border-color 0.15s, background 0.15s',
         userSelect: 'none',
       }}
     >
@@ -90,43 +84,12 @@ function BlockChip({
       </span>
       {block.kit && <KitBadge kit={block.kit} size="sm" />}
 
-      {block.docs && (hovered || helpOpen) && (
-        <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleHelp();
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 16,
-            height: 16,
-            borderRadius: '50%',
-            border: 'none',
-            background: helpOpen ? 'var(--ed-accent)' : 'rgba(128,128,128,0.15)',
-            color: helpOpen ? 'white' : 'var(--ed-text-muted)',
-            cursor: 'pointer',
-            fontSize: 9,
-            fontWeight: 700,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            padding: 0,
-            marginLeft: -2,
-            flexShrink: 0,
-          }}
-          title={`Help: ${block.name}`}
-        >
-          ?
-        </button>
-      )}
-
-      {helpOpen && block.docs && helpRef.current && (
+      {helpOpen && block.docs && chipRef.current && (
         <BlockHelpPopover
           docs={block.docs}
           blockName={block.name}
           kitName={block.kit}
-          anchorEl={helpRef.current}
+          anchorEl={chipRef.current}
           onClose={onCloseHelp}
         />
       )}
