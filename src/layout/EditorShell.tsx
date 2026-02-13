@@ -10,13 +10,17 @@ import { ResizeHandle } from './ResizeHandle';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { useCursorContext } from '../store/use-cursor-context';
+import { useUndoInit } from '../store/use-undo';
 import type { CompletionData } from '@milkly/mkly';
 
 interface EditorShellProps {
   completionData: CompletionData;
+  documentId?: string;
+  persistHistory?: boolean;
 }
 
-export function EditorShell({ completionData }: EditorShellProps) {
+export function EditorShell({ completionData, documentId, persistHistory }: EditorShellProps) {
+  useUndoInit(documentId ?? '_default', { persistHistory });
   const panelSizes = useEditorStore((s) => s.panelSizes);
   const setPanelSizes = useEditorStore((s) => s.setPanelSizes);
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);

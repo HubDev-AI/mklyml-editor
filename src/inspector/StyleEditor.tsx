@@ -7,23 +7,29 @@ import { BorderControls } from './style-controls/BorderControls';
 
 interface StyleEditorProps {
   properties: Record<string, string>;
+  computedStyles: Record<string, string>;
   onPropertyChange: (key: string, value: string) => void;
 }
 
 const DISPLAY_OPTIONS = ['block', 'inline', 'inline-block', 'flex', 'grid', 'none'];
 
-const ANIMATION_PRESETS = [
+interface Preset { label: string; value: string }
+
+const ANIMATION_PRESETS: Preset[] = [
   { label: 'None', value: '' },
   { label: 'Fade In', value: 'fadeIn 0.5s ease' },
   { label: 'Slide Up', value: 'slideUp 0.5s ease' },
   { label: 'Slide Down', value: 'slideDown 0.5s ease' },
+  { label: 'Slide Left', value: 'slideInLeft 0.5s ease' },
+  { label: 'Slide Right', value: 'slideInRight 0.5s ease' },
   { label: 'Scale In', value: 'scaleIn 0.3s ease' },
   { label: 'Bounce', value: 'bounce 0.6s ease' },
   { label: 'Pulse', value: 'pulse 2s infinite' },
   { label: 'Shake', value: 'shake 0.5s ease' },
+  { label: 'Reveal Card', value: 'revealCard 0.4s ease' },
 ];
 
-const TRANSITION_PRESETS = [
+const TRANSITION_PRESETS: Preset[] = [
   { label: 'None', value: '' },
   { label: 'All 0.2s', value: 'all 0.2s ease' },
   { label: 'All 0.3s', value: 'all 0.3s ease' },
@@ -33,7 +39,7 @@ const TRANSITION_PRESETS = [
   { label: 'Colors 0.2s', value: 'color 0.2s, background-color 0.2s' },
 ];
 
-const HOVER_SCALE_OPTIONS = [
+const HOVER_TRANSFORM_OPTIONS: Preset[] = [
   { label: 'None', value: '' },
   { label: 'Grow', value: 'scale(1.05)' },
   { label: 'Shrink', value: 'scale(0.95)' },
@@ -41,9 +47,32 @@ const HOVER_SCALE_OPTIONS = [
   { label: 'Push', value: 'translateY(1px)' },
 ];
 
+const SHADOW_PRESETS: Preset[] = [
+  { label: 'None', value: '' },
+  { label: 'Subtle', value: '0 1px 3px rgba(0,0,0,0.12)' },
+  { label: 'Small', value: '0 2px 8px rgba(0,0,0,0.15)' },
+  { label: 'Medium', value: '0 4px 16px rgba(0,0,0,0.12)' },
+  { label: 'Large', value: '0 8px 32px rgba(0,0,0,0.15)' },
+  { label: 'XL', value: '0 16px 48px rgba(0,0,0,0.2)' },
+];
+
+const HOVER_SHADOW_PRESETS: Preset[] = [
+  { label: 'None', value: '' },
+  { label: 'Medium', value: '0 4px 16px rgba(0,0,0,0.15)' },
+  { label: 'Large', value: '0 8px 32px rgba(0,0,0,0.2)' },
+  { label: 'XL', value: '0 16px 48px rgba(0,0,0,0.25)' },
+];
+
+const HOVER_OPACITY_OPTIONS: Preset[] = [
+  { label: 'Default', value: '' },
+  { label: '80%', value: '0.8' },
+  { label: '60%', value: '0.6' },
+  { label: '40%', value: '0.4' },
+];
+
 const CURSOR_OPTIONS = ['default', 'pointer', 'grab', 'text', 'not-allowed', 'crosshair'];
 
-export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) {
+export function StyleEditor({ properties, computedStyles, onPropertyChange }: StyleEditorProps) {
   const [collapsed, setCollapsed] = useState(true);
 
   const styles: Record<string, string> = {};
@@ -113,22 +142,22 @@ export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) 
           </StyleGroup>
 
           <StyleGroup label="Spacing">
-            <SpacingControl label="Padding" value={styles['padding'] ?? ''} onChange={(v) => setStyle('padding', v)} />
-            <SpacingControl label="Margin" value={styles['margin'] ?? ''} onChange={(v) => setStyle('margin', v)} />
+            <SpacingControl label="Padding" value={styles['padding'] ?? ''} computed={computedStyles['padding']} onChange={(v) => setStyle('padding', v)} />
+            <SpacingControl label="Margin" value={styles['margin'] ?? ''} computed={computedStyles['margin']} onChange={(v) => setStyle('margin', v)} />
           </StyleGroup>
 
           <StyleGroup label="Typography">
-            <FontControls styles={styles} onStyleChange={setStyle} />
+            <FontControls styles={styles} computedStyles={computedStyles} onStyleChange={setStyle} />
           </StyleGroup>
 
           <StyleGroup label="Background">
             <StyleRow label="Color">
-              <ColorPicker value={styles['bg'] ?? styles['backgroundColor'] ?? ''} onChange={(v) => setStyle('bg', v)} />
+              <ColorPicker value={styles['bg'] ?? styles['backgroundColor'] ?? ''} computed={computedStyles['backgroundColor']} onChange={(v) => setStyle('bg', v)} />
             </StyleRow>
           </StyleGroup>
 
           <StyleGroup label="Border">
-            <BorderControls styles={styles} onStyleChange={setStyle} />
+            <BorderControls styles={styles} computedStyles={computedStyles} onStyleChange={setStyle} />
           </StyleGroup>
 
           <StyleGroup label="Effects">
@@ -141,18 +170,11 @@ export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) 
               />
             </StyleRow>
             <StyleRow label="Shadow">
-              <select
+              <PresetSelect
                 value={styles['boxShadow'] ?? ''}
-                onChange={(e) => setStyle('boxShadow', e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">None</option>
-                <option value="0 1px 3px rgba(0,0,0,0.12)">Subtle</option>
-                <option value="0 2px 8px rgba(0,0,0,0.15)">Small</option>
-                <option value="0 4px 16px rgba(0,0,0,0.12)">Medium</option>
-                <option value="0 8px 32px rgba(0,0,0,0.15)">Large</option>
-                <option value="0 16px 48px rgba(0,0,0,0.2)">XL</option>
-              </select>
+                presets={SHADOW_PRESETS}
+                onChange={(v) => setStyle('boxShadow', v)}
+              />
             </StyleRow>
             <StyleRow label="Transform">
               <input
@@ -167,46 +189,35 @@ export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) 
 
           <StyleGroup label="Animation">
             <StyleRow label="Animate">
-              <select
+              <PresetSelect
                 value={styles['animation'] ?? ''}
-                onChange={(e) => setStyle('animation', e.target.value)}
-                style={selectStyle}
-              >
-                {ANIMATION_PRESETS.map(a => <option key={a.label} value={a.value}>{a.label}</option>)}
-              </select>
+                presets={ANIMATION_PRESETS}
+                onChange={(v) => setStyle('animation', v)}
+              />
             </StyleRow>
             <StyleRow label="Transition">
-              <select
+              <PresetSelect
                 value={styles['transition'] ?? ''}
-                onChange={(e) => setStyle('transition', e.target.value)}
-                style={selectStyle}
-              >
-                {TRANSITION_PRESETS.map(t => <option key={t.label} value={t.value}>{t.label}</option>)}
-              </select>
+                presets={TRANSITION_PRESETS}
+                onChange={(v) => setStyle('transition', v)}
+              />
             </StyleRow>
           </StyleGroup>
 
           <StyleGroup label="Hover">
-            <StyleRow label="Scale">
-              <select
+            <StyleRow label="Transform">
+              <PresetSelect
                 value={styles['.self:hover/transform'] ?? ''}
-                onChange={(e) => setStyle('.self:hover/transform', e.target.value)}
-                style={selectStyle}
-              >
-                {HOVER_SCALE_OPTIONS.map(h => <option key={h.label} value={h.value}>{h.label}</option>)}
-              </select>
+                presets={HOVER_TRANSFORM_OPTIONS}
+                onChange={(v) => setStyle('.self:hover/transform', v)}
+              />
             </StyleRow>
             <StyleRow label="Opacity">
-              <select
+              <PresetSelect
                 value={styles['.self:hover/opacity'] ?? ''}
-                onChange={(e) => setStyle('.self:hover/opacity', e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">Default</option>
-                <option value="0.8">80%</option>
-                <option value="0.6">60%</option>
-                <option value="0.4">40%</option>
-              </select>
+                presets={HOVER_OPACITY_OPTIONS}
+                onChange={(v) => setStyle('.self:hover/opacity', v)}
+              />
             </StyleRow>
             <StyleRow label="Bg">
               <ColorPicker
@@ -215,16 +226,11 @@ export function StyleEditor({ properties, onPropertyChange }: StyleEditorProps) 
               />
             </StyleRow>
             <StyleRow label="Shadow">
-              <select
+              <PresetSelect
                 value={styles['.self:hover/boxShadow'] ?? ''}
-                onChange={(e) => setStyle('.self:hover/boxShadow', e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">None</option>
-                <option value="0 4px 16px rgba(0,0,0,0.15)">Medium</option>
-                <option value="0 8px 32px rgba(0,0,0,0.2)">Large</option>
-                <option value="0 16px 48px rgba(0,0,0,0.25)">XL</option>
-              </select>
+                presets={HOVER_SHADOW_PRESETS}
+                onChange={(v) => setStyle('.self:hover/boxShadow', v)}
+              />
             </StyleRow>
           </StyleGroup>
         </div>
@@ -244,6 +250,20 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4, background: 'var(--ed-glass-bg)', color: 'var(--ed-text)',
   fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
 };
+
+function PresetSelect({ value, presets, onChange }: { value: string; presets: Preset[]; onChange: (v: string) => void }) {
+  const isCustom = value !== '' && !presets.some(p => p.value === value);
+  return (
+    <select
+      value={isCustom ? '__custom__' : value}
+      onChange={(e) => onChange(e.target.value === '__custom__' ? value : e.target.value)}
+      style={selectStyle}
+    >
+      {presets.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+      {isCustom && <option value="__custom__">Custom: {value}</option>}
+    </select>
+  );
+}
 
 function StyleGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (

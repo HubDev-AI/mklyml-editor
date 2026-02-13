@@ -20,7 +20,7 @@ function findEnclosingBlock(
     const match = line.match(/^---\s+([\w]+(?:\/[\w]+)?)/);
     if (match) {
       const blockType = match[1];
-      if (blockType === 'style' || blockType === 'meta' || blockType === 'use' || blockType === 'theme') return null;
+      if (blockType === 'style' || blockType === 'meta' || blockType === 'use' || blockType === 'theme' || blockType === 'preset') return null;
       return blockType;
     }
   }
@@ -57,6 +57,7 @@ export function mklyCompletionSource(data: CompletionData) {
         { label: 'meta', detail: 'Document metadata', type: 'keyword' },
         { label: 'use', detail: 'Kit declaration', type: 'keyword' },
         { label: 'theme', detail: 'Theme selection', type: 'keyword' },
+        { label: 'preset', detail: 'Preset selection', type: 'keyword' },
       ];
 
       const blockCompletions: Completion[] = [
@@ -99,6 +100,21 @@ export function mklyCompletionSource(data: CompletionData) {
         options: data.themes.map(t => ({
           label: t.label,
           detail: t.description,
+          type: 'enum' as const,
+        })),
+        filter: true,
+      };
+    }
+
+    // After `--- preset: ` → suggest preset names
+    const presetTrigger = textBefore.match(/^---\s+preset:\s*([\w/]*)$/);
+    if (presetTrigger) {
+      const prefix = presetTrigger[1];
+      return {
+        from: pos - prefix.length,
+        options: data.presets.map(p => ({
+          label: p.label,
+          detail: p.description,
           type: 'enum' as const,
         })),
         filter: true,

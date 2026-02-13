@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ParseError, CompileError, SourceMapEntry } from '@milkly/mkly';
 import { resolveBlockLine } from './selection-orchestrator';
+import type { UndoInfo } from './undo-manager';
 
 type OutputMode = 'web' | 'email';
 type ViewMode = 'preview' | 'edit' | 'html';
@@ -54,6 +55,10 @@ interface EditorState {
   // Source map from latest compilation (for line-level sync)
   sourceMap: SourceMapEntry[] | null;
 
+  // Computed CSS styles of the active block element in the preview iframe.
+  // Used by the style editor to show inherited/theme values as placeholders.
+  computedStyles: Record<string, string>;
+
   // Independent word wrap toggles per code editor
   mklyWordWrap: boolean;
   htmlWordWrap: boolean;
@@ -62,6 +67,12 @@ interface EditorState {
   // to ensure stability under html→mkly round-trips
   isNormalized: boolean;
   normalizationWarnings: Array<ParseError>;
+
+  // Persistent undo/redo
+  documentId: string;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoInfo: UndoInfo;
 
   setSource: (source: string) => void;
   setHtml: (html: string) => void;
@@ -78,6 +89,7 @@ interface EditorState {
   setActiveBlockLine: (line: number | null) => void;
   setScrollLock: (locked: boolean) => void;
   setSourceMap: (sourceMap: SourceMapEntry[] | null) => void;
+  setComputedStyles: (styles: Record<string, string>) => void;
   setMklyWordWrap: (wrap: boolean) => void;
   setHtmlWordWrap: (wrap: boolean) => void;
   setIsNormalized: (normalized: boolean) => void;
@@ -86,6 +98,12 @@ interface EditorState {
 
   // Single entry point: any tab calls this to say "user is at this mkly line"
   focusBlock: (line: number, origin: FocusOrigin, intent?: FocusIntent) => void;
+
+  // Persistent undo/redo (implementations registered by useUndoInit hook)
+  undo: () => boolean;
+  redo: () => boolean;
+  flushUndo: () => void;
+  clearHistory: () => void;
 }
 
 const EXAMPLE = `// A sample newsletter — edit this!
@@ -222,6 +240,18 @@ Thanks for reading! See you next week.
 [Unsubscribe](https://example.com/unsub) | [View in browser](https://example.com/web) | Built with **mkly**
 `;
 
+// Undo handlers registered by useUndoInit hook — no undo logic in the store.
+let _undoHandlers = {
+  undo: (): boolean => false,
+  redo: (): boolean => false,
+  flush: (): void => {},
+  clear: (): void => {},
+};
+
+export function registerUndoHandlers(handlers: typeof _undoHandlers): void {
+  _undoHandlers = handlers;
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   source: EXAMPLE,
   html: '',
@@ -242,10 +272,15 @@ export const useEditorStore = create<EditorState>((set) => ({
   focusIntent: 'navigate',
   scrollLock: false,
   sourceMap: null,
+  computedStyles: {},
   mklyWordWrap: true,
   htmlWordWrap: true,
   isNormalized: false,
   normalizationWarnings: [],
+  documentId: '_default',
+  canUndo: false,
+  canRedo: false,
+  undoInfo: { position: 0, total: 0, storageBytes: 0 },
 
   setSource: (source) => set({ source }),
   setHtml: (html) => set({ html }),
@@ -270,6 +305,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActiveBlockLine: (line) => set({ activeBlockLine: line }),
   setScrollLock: (locked) => set({ scrollLock: locked }),
   setSourceMap: (sourceMap) => set({ sourceMap }),
+  setComputedStyles: (styles) => set({ computedStyles: styles }),
   setMklyWordWrap: (wrap) => set({ mklyWordWrap: wrap }),
   setHtmlWordWrap: (wrap) => set({ htmlWordWrap: wrap }),
   setIsNormalized: (normalized) => set({ isNormalized: normalized }),
@@ -297,6 +333,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       focusIntent: intent,
     };
   }),
+
+  undo: () => _undoHandlers.undo(),
+  redo: () => _undoHandlers.redo(),
+  flushUndo: () => _undoHandlers.flush(),
+  clearHistory: () => _undoHandlers.clear(),
 }));
 
 export type { FocusOrigin, FocusIntent, SelectionState };

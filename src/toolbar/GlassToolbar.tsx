@@ -1,6 +1,6 @@
 import { useEditorStore } from '../store/editor-store';
 import { useTheme } from '../theme/use-theme';
-import { IconPlus, IconSun, IconMoon, IconWordWrap } from '../icons';
+import { IconPlus, IconSun, IconMoon, IconWordWrap, IconUndo, IconRedo } from '../icons';
 
 export function GlassToolbar() {
   const outputMode = useEditorStore((s) => s.outputMode);
@@ -14,6 +14,10 @@ export function GlassToolbar() {
   const setBlockDockOpen = useEditorStore((s) => s.setBlockDockOpen);
   const mklyWordWrap = useEditorStore((s) => s.mklyWordWrap);
   const setMklyWordWrap = useEditorStore((s) => s.setMklyWordWrap);
+  const canUndo = useEditorStore((s) => s.canUndo);
+  const canRedo = useEditorStore((s) => s.canRedo);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
   const htmlWordWrap = useEditorStore((s) => s.htmlWordWrap);
   const setHtmlWordWrap = useEditorStore((s) => s.setHtmlWordWrap);
   const { theme, toggleTheme } = useTheme();
@@ -60,6 +64,16 @@ export function GlassToolbar() {
 
       <ToolbarButton onClick={() => setBlockDockOpen(true)} title="Insert block (Cmd+Shift+P)">
         <IconPlus />
+      </ToolbarButton>
+
+      <div style={{ width: 1, height: 18, background: 'var(--ed-border)', flexShrink: 0 }} />
+
+      {/* Undo / Redo */}
+      <ToolbarButton onClick={undo} title="Undo (Cmd+Z)" disabled={!canUndo}>
+        <IconUndo />
+      </ToolbarButton>
+      <ToolbarButton onClick={redo} title="Redo (Cmd+Shift+Z)" disabled={!canRedo}>
+        <IconRedo />
       </ToolbarButton>
 
       <div style={{ flex: 1 }} />
@@ -146,16 +160,18 @@ function PillToggle<T extends string>({ options, value, onChange, labels }: {
   );
 }
 
-function ToolbarButton({ children, onClick, title, active }: {
+function ToolbarButton({ children, onClick, title, active, disabled }: {
   children: React.ReactNode;
   onClick: () => void;
   title?: string;
   active?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className="liquid-glass-button"
       style={{
         display: 'flex',
@@ -165,8 +181,9 @@ function ToolbarButton({ children, onClick, title, active }: {
         height: 30,
         padding: 0,
         color: active ? 'var(--ed-accent)' : 'var(--ed-text-muted)',
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
         background: active ? 'rgba(226, 114, 91, 0.1)' : undefined,
+        opacity: disabled ? 0.35 : 1,
       }}
     >
       {children}

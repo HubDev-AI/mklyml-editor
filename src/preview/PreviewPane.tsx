@@ -7,6 +7,7 @@ import { prettifyHtml } from './prettify-html';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { queryComputedStyles } from './computed-styles';
 
 export function PreviewPane() {
   const html = useEditorStore((s) => s.html);
@@ -19,6 +20,7 @@ export function PreviewPane() {
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
+  const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
@@ -79,7 +81,10 @@ export function PreviewPane() {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock);
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode]);
+    if (activeBlockLine !== null) {
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine));
+    }
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, setComputedStyles]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);
@@ -117,7 +122,7 @@ export function PreviewPane() {
         style={{
           flex: 1,
           border: 'none',
-          background: theme === 'dark' ? '#0a0a0a' : 'white',
+          background: 'var(--ed-surface, #fff)',
           display: viewMode === 'preview' ? 'block' : 'none',
         }}
       />

@@ -47,6 +47,8 @@ export const IconRecommendations = (p: MklyIconProps) => <I {...p}><path d="M4 8
 export const IconSponsor = (p: MklyIconProps) => <I {...p}><path d="M2 4l3-2h6l3 2v2l-6 8-6-8z"/></I>;
 export const IconOutro = (p: MklyIconProps) => <I {...p}><path d="M2 8c1 0 2-.5 3-2s2-2 3 0 2 2 3 0 2-2 3-2"/><line x1="2" y1="12" x2="14" y2="12"/></I>;
 export const IconCustom = (p: MklyIconProps) => <I {...p}><path d="M6.5 2L2 6v4l4.5 4h3L14 10V6L9.5 2z"/><circle cx="8" cy="8" r="2"/></I>;
+export const IconTheme = (p: MklyIconProps) => <I {...p}><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><circle cx="8" cy="11" r="2.5"/></I>;
+export const IconPreset = (p: MklyIconProps) => <I {...p}><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></I>;
 
 // ---------------------------------------------------------------------------
 // UI chrome icons (6)
@@ -58,6 +60,8 @@ export const IconEmail = (p: MklyIconProps) => <I {...p}><rect x="2" y="3" width
 export const IconPlus = (p: MklyIconProps) => <I {...p}><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></I>;
 export const IconSearch = (p: MklyIconProps) => <I {...p}><circle cx="7" cy="7" r="4"/><line x1="10" y1="10" x2="14" y2="14"/></I>;
 export const IconWordWrap = (p: MklyIconProps) => <I {...p}><line x1="2" y1="4" x2="14" y2="4"/><path d="M2 8h10a2 2 0 0 1 0 4H10"/><polyline points="11,14 10,12 11,10"/><line x1="2" y1="12" x2="6" y2="12"/></I>;
+export const IconUndo = (p: MklyIconProps) => <I {...p}><path d="M4 7h6a3 3 0 0 1 0 6H9"/><polyline points="6,5 4,7 6,9"/></I>;
+export const IconRedo = (p: MklyIconProps) => <I {...p}><path d="M12 7H6a3 3 0 0 0 0 6h1"/><polyline points="10,5 12,7 10,9"/></I>;
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -68,6 +72,8 @@ export const BLOCK_ICONS: Record<string, (p: MklyIconProps) => React.JSX.Element
   divider: IconDivider, spacer: IconSpacer, code: IconCode, quote: IconQuote,
   hero: IconHero, section: IconSection, card: IconCard, list: IconList,
   header: IconHeader, footer: IconFooter, cta: IconCta,
+  // Directives
+  theme: IconTheme, preset: IconPreset,
   // Newsletter
   intro: IconIntro, featured: IconFeatured, category: IconCategory, item: IconItem,
   quickHits: IconQuickHits, tools: IconTools, tipOfTheDay: IconTipOfTheDay,

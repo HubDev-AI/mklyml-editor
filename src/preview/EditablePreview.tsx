@@ -3,10 +3,11 @@ import { useEditorStore } from '../store/editor-store';
 import { mkly } from '@milkly/mkly';
 import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
-import { cleanHtmlForReverse, MKLY_KITS, findLineForBlockIndex } from './reverse-helpers';
+import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { queryComputedStyles } from './computed-styles';
 
 interface EditablePreviewProps {
   onSyncError: (error: string | null) => void;
@@ -21,6 +22,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
+  const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
@@ -80,11 +82,10 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     const activeEl = iframeDoc?.activeElement as HTMLElement | null;
     const blockEl = activeEl?.closest?.('[data-mkly-line]') as HTMLElement | null;
 
-    let editingBlockIndex = -1;
+    let editingOriginalLine = -1;
     let editingBlockClass: string | null = null;
-    if (blockEl && iframeDoc) {
-      const allBlocks = iframeDoc.querySelectorAll('[data-mkly-line]');
-      editingBlockIndex = Array.from(allBlocks).indexOf(blockEl);
+    if (blockEl) {
+      editingOriginalLine = Number(blockEl.dataset.mklyLine ?? -1);
       const classes = blockEl.className.split(/\s+/);
       editingBlockClass = classes.find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--')) ?? null;
     }
@@ -112,6 +113,12 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       if (source !== latestSource) {
         try {
           const testResult = mkly(source, { kits: MKLY_KITS, sourceMap: true });
+          const hasErrors = testResult.errors.some(e => e.severity === 'error');
+          if (hasErrors) {
+            onSyncError('Edit produced invalid source — reverting');
+            setTimeout(() => { isEditingRef.current = false; }, 200);
+            return;
+          }
           const currentHtml = useEditorStore.getState().html;
           if (testResult.html !== currentHtml) {
             setSource(source);
@@ -119,17 +126,17 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
           }
         } catch (e) {
           onSyncError(`Compile error: ${String(e)}`);
-          setSource(source);
-          updated = true;
+          setTimeout(() => { isEditingRef.current = false; }, 200);
+          return;
         }
       }
 
       if (updated) {
         onSyncError(null);
-        if (editingBlockIndex >= 0) {
-          const line = findLineForBlockIndex(source, editingBlockIndex, editingBlockClass);
+        if (editingOriginalLine >= 1) {
+          const line = findBlockByOriginalLine(source, editingOriginalLine, editingBlockClass);
           if (line !== null) {
-            useEditorStore.getState().focusBlock(line, 'edit');
+            useEditorStore.getState().focusBlock(line, 'edit', 'recompile');
           }
         }
       } else {
@@ -165,7 +172,10 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock);
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion]);
+    if (activeBlockLine !== null) {
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine));
+    }
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
 
   return (
     <iframe
@@ -174,7 +184,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       style={{
         flex: 1,
         border: 'none',
-        background: theme === 'dark' ? '#0a0a0a' : 'white',
+        background: 'var(--ed-surface, #fff)',
       }}
     />
   );

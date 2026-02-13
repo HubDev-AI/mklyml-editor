@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { EditorState, Compartment, StateEffect, StateField } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, indentWithTab } from '@codemirror/commands';
 import { autocompletion } from '@codemirror/autocomplete';
 import { linter, type Diagnostic } from '@codemirror/lint';
 import { mklyLanguage } from '../mkly-lang';
@@ -141,8 +141,10 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
           { key: 'Mod-k', run: insertLink },
           { key: 'Mod-e', run: wrapCode },
           { key: 'Mod-Shift-p', run: () => { setBlockDockOpen(true); return true; } },
+          { key: 'Mod-z', run: () => { useEditorStore.getState().undo(); return true; } },
+          { key: 'Mod-Shift-z', run: () => { useEditorStore.getState().redo(); return true; } },
+          { key: 'Mod-y', run: () => { useEditorStore.getState().redo(); return true; } },
           ...defaultKeymap,
-          ...historyKeymap,
           indentWithTab,
         ]),
         EditorView.updateListener.of((update) => {

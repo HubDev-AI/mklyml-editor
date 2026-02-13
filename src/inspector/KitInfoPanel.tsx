@@ -101,7 +101,7 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
       )}
 
       {kitInfo.themeNames.length > 0 && (
-        <div>
+        <div style={{ marginBottom: 10 }}>
           <div style={{
             fontSize: 9,
             fontWeight: 700,
@@ -114,6 +114,39 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {kitInfo.themeNames.map((name) => (
+              <span
+                key={name}
+                style={{
+                  fontSize: 10,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: 'var(--ed-surface)',
+                  border: '1px solid var(--ed-border)',
+                  borderRadius: 3,
+                  padding: '2px 6px',
+                  color: 'var(--ed-text)',
+                }}
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {kitInfo.presetNames.length > 0 && (
+        <div>
+          <div style={{
+            fontSize: 9,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: 'var(--ed-text-muted)',
+            marginBottom: 4,
+          }}>
+            Presets ({kitInfo.presetNames.length})
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {kitInfo.presetNames.map((name) => (
               <span
                 key={name}
                 style={{

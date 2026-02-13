@@ -8,8 +8,11 @@ import { KitInfoPanel } from './KitInfoPanel';
 import { MetaInspector } from './MetaInspector';
 import { NoSelection } from './NoSelection';
 import { ThemeInfo } from './ThemeInfo';
+import { PresetInfo } from './PresetInfo';
 import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
+import { useDocumentPresets } from '../store/use-document-presets';
+import { applyPropertyChange } from '../store/block-properties';
 import type { CursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@milkly/mkly';
 
@@ -21,6 +24,8 @@ interface PropertyInspectorProps {
 export function PropertyInspector({ cursorBlock, completionData }: PropertyInspectorProps) {
   const setSource = useEditorStore((s) => s.setSource);
   const activeThemes = useDocumentThemes();
+  const activePresets = useDocumentPresets();
+  const computedStyles = useEditorStore((s) => s.computedStyles);
 
   const focusBlock = useEditorStore((s) => s.focusBlock);
   const cursorLine = useEditorStore((s) => s.cursorLine);
@@ -28,32 +33,17 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const handlePropertyChange = useCallback((key: string, value: string) => {
     if (!cursorBlock) return;
 
-    // Signal edit-property intent before modifying source to suppress cross-pane scrolls
     focusBlock(cursorLine, 'inspector', 'edit-property');
 
     const currentSource = useEditorStore.getState().source;
-    const lines = currentSource.split('\n');
-    let found = false;
-
-    for (let i = cursorBlock.startLine - 1; i < cursorBlock.endLine - 1 && i < lines.length; i++) {
-      const match = lines[i].match(/^(@?[\w./-]+):\s*/);
-      if (match && match[1] === key) {
-        if (value === '') {
-          lines.splice(i, 1);
-        } else {
-          lines[i] = `${key}: ${value}`;
-        }
-        found = true;
-        break;
-      }
-    }
-
-    if (!found && value !== '') {
-      const insertAt = cursorBlock.startLine - 1;
-      lines.splice(insertAt, 0, `${key}: ${value}`);
-    }
-
-    setSource(lines.join('\n'));
+    const { newSource } = applyPropertyChange(
+      currentSource,
+      cursorBlock.startLine,
+      cursorBlock.endLine,
+      key,
+      value,
+    );
+    setSource(newSource);
   }, [cursorBlock, setSource, focusBlock, cursorLine]);
 
   if (!cursorBlock) {
@@ -61,20 +51,24 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <NoSelection />
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
+        <PresetInfo activePresets={activePresets} completionData={completionData} />
       </div>
     );
   }
 
   // Special block: --- use: kitName
   if (cursorBlock.isSpecial && cursorBlock.type === 'use') {
+    const kitInfo = completionData.kitInfo.get(cursorBlock.label ?? '');
+    const kitHasPresets = (kitInfo?.presetNames.length ?? 0) > 0;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
         <KitInfoPanel
           kitName={cursorBlock.label ?? ''}
-          kitInfo={completionData.kitInfo.get(cursorBlock.label ?? '')}
+          kitInfo={kitInfo}
           completionData={completionData}
         />
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
+        {kitHasPresets && <PresetInfo activePresets={activePresets} completionData={completionData} />}
       </div>
     );
   }
@@ -98,6 +92,17 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
+        <PresetInfo activePresets={activePresets} completionData={completionData} />
+      </div>
+    );
+  }
+
+  // Special block: --- preset: name
+  if (cursorBlock.isSpecial && cursorBlock.type === 'preset') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+        <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
+        <PresetInfo activePresets={activePresets} completionData={completionData} />
       </div>
     );
   }
@@ -128,6 +133,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       />
       <StyleEditor
         properties={cursorBlock.properties}
+        computedStyles={computedStyles}
         onPropertyChange={handlePropertyChange}
       />
       {completionData.targets.get(cursorBlock.type) && (

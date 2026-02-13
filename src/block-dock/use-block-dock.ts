@@ -30,6 +30,8 @@ export function useBlockDock(completionData: CompletionData) {
       { name: 'style', description: 'Style block' },
       { name: 'meta', description: 'Document metadata' },
       { name: 'use', description: 'Kit declaration' },
+      { name: 'theme', description: 'Theme declaration' },
+      { name: 'preset', description: 'Preset declaration' },
     ];
 
     const kitBlocks = completionData.blocks

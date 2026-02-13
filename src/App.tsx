@@ -6,5 +6,5 @@ export function App() {
   useTheme();
   const { completionData } = useCompile();
 
-  return <EditorShell completionData={completionData} />;
+  return <EditorShell completionData={completionData} documentId="_standalone" />;
 }

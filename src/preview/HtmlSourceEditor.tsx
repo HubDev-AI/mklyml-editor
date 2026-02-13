@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { EditorState, Compartment, StateEffect, StateField } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, keymap, lineNumbers, drawSelection } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history } from '@codemirror/commands';
 import { html } from '@codemirror/lang-html';
 import { mklyThemeDark } from '../editor/mkly-theme-dark';
 import { mklyThemeLight } from '../editor/mkly-theme-light';
@@ -85,7 +85,12 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
         html(),
         htmlHighlightField,
         themeCompartment.of(mklyThemeDark),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          { key: 'Mod-z', run: () => { useEditorStore.getState().undo(); return true; } },
+          { key: 'Mod-Shift-z', run: () => { useEditorStore.getState().redo(); return true; } },
+          { key: 'Mod-y', run: () => { useEditorStore.getState().redo(); return true; } },
+          ...defaultKeymap,
+        ]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !isExternalRef.current) {
             markUserEdit();
