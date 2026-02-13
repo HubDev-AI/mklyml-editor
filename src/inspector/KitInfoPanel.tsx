@@ -45,7 +45,7 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
           fontWeight: 700,
           flexShrink: 0,
         }}>
-          {kitInfo.name[0].toUpperCase()}
+          {kitInfo.displayName[0].toUpperCase()}
         </div>
         <div>
           <div style={{
@@ -53,7 +53,7 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
             fontWeight: 600,
             color: 'var(--ed-text)',
           }}>
-            {kitInfo.name}
+            {kitInfo.displayName}
           </div>
           <div style={{
             fontSize: 11,
@@ -113,22 +113,25 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
             Themes ({kitInfo.themeNames.length})
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {kitInfo.themeNames.map((name) => (
-              <span
-                key={name}
-                style={{
-                  fontSize: 10,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  background: 'var(--ed-surface)',
-                  border: '1px solid var(--ed-border)',
-                  borderRadius: 3,
-                  padding: '2px 6px',
-                  color: 'var(--ed-text)',
-                }}
-              >
-                {name}
-              </span>
-            ))}
+            {kitInfo.themeNames.map((name) => {
+              const item = completionData?.themes.find((t) => t.label === name);
+              return (
+                <span
+                  key={name}
+                  title={name}
+                  style={{
+                    fontSize: 10,
+                    background: 'var(--ed-surface)',
+                    border: '1px solid var(--ed-border)',
+                    borderRadius: 3,
+                    padding: '2px 6px',
+                    color: 'var(--ed-text)',
+                  }}
+                >
+                  {item?.description ?? name}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -146,22 +149,25 @@ export function KitInfoPanel({ kitName, kitInfo, completionData }: KitInfoPanelP
             Presets ({kitInfo.presetNames.length})
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {kitInfo.presetNames.map((name) => (
-              <span
-                key={name}
-                style={{
-                  fontSize: 10,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  background: 'var(--ed-surface)',
-                  border: '1px solid var(--ed-border)',
-                  borderRadius: 3,
-                  padding: '2px 6px',
-                  color: 'var(--ed-text)',
-                }}
-              >
-                {name}
-              </span>
-            ))}
+            {kitInfo.presetNames.map((name) => {
+              const item = completionData?.presets.find((p) => p.label === name);
+              return (
+                <span
+                  key={name}
+                  title={name}
+                  style={{
+                    fontSize: 10,
+                    background: 'var(--ed-surface)',
+                    border: '1px solid var(--ed-border)',
+                    borderRadius: 3,
+                    padding: '2px 6px',
+                    color: 'var(--ed-text)',
+                  }}
+                >
+                  {item?.description ?? name}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

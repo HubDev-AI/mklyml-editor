@@ -142,8 +142,8 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
                 }}
               >
                 {availablePresets.map((p) => (
-                  <option key={p.label} value={p.label} title={p.description}>
-                    {p.label}
+                  <option key={p.label} value={p.label} title={p.label}>
+                    {p.description}
                   </option>
                 ))}
               </select>
@@ -168,7 +168,9 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
         </div>
       ) : implicitPresets.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {implicitPresets.map((name) => (
+          {implicitPresets.map((name) => {
+            const item = availablePresets.find((p) => p.label === name);
+            return (
             <div
               key={name}
               style={{
@@ -180,14 +182,13 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
                 border: '1px dashed var(--ed-border)',
                 borderRadius: 4,
                 fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
                 color: 'var(--ed-text-muted)',
                 cursor: 'pointer',
               }}
               onClick={() => handleMakeExplicit(name)}
-              title="Click to make explicit in source"
+              title={`${name} — click to make explicit`}
             >
-              <span style={{ flex: 1 }}>{name}</span>
+              <span style={{ flex: 1 }}>{item?.description ?? name}</span>
               <span style={{
                 fontSize: 9,
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -197,11 +198,12 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
                 auto
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div style={{ color: 'var(--ed-text-muted)', fontStyle: 'italic', fontSize: 11 }}>
-          No preset — using default block styles
+          No preset — unstyled
         </div>
       )}
     </div>

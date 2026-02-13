@@ -149,7 +149,7 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
         </div>
       ) : (
         <div style={{ color: 'var(--ed-text-muted)', fontStyle: 'italic', fontSize: 11 }}>
-          No theme — using kit defaults
+          No theme — unstyled
         </div>
       )}
     </div>
