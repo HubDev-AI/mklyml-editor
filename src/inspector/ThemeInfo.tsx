@@ -124,7 +124,7 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
               >
                 {availableThemes.map((t) => (
                   <option key={t.label} value={t.label} title={t.description}>
-                    {t.label}
+                    {t.description || t.label}
                   </option>
                 ))}
               </select>
