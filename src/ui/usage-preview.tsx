@@ -15,7 +15,7 @@ function getThemeColors(el: Element): { bg: string; fg: string } {
 }
 
 export function UsagePreview({ usage, htmlPreview }: UsagePreviewProps) {
-  const [tab, setTab] = useState<'mkly' | 'preview'>('mkly');
+  const [tab, setTab] = useState<'mklyml' | 'preview'>('mklyml');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const theme = useEditorStore((s) => s.theme);
@@ -45,12 +45,12 @@ export function UsagePreview({ usage, htmlPreview }: UsagePreviewProps) {
             marginBottom: 4,
           }}
         >
-          <TabButton active={tab === 'mkly'} onClick={() => setTab('mkly')}>mkly</TabButton>
+          <TabButton active={tab === 'mklyml'} onClick={() => setTab('mklyml')}>mklyml</TabButton>
           <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>Preview</TabButton>
         </div>
       )}
 
-      {tab === 'mkly' && (
+      {tab === 'mklyml' && (
         <pre
           style={{
             background: 'var(--ed-surface)',

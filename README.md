@@ -10,7 +10,7 @@ A visual editor for [mklyml](https://github.com/HubDev-AI/mklyml) documents — 
 
 ---
 
-![mklyml editor — three-pane view with source, preview, and style inspector in neon-pulse theme](docs/images/editor-full.png)
+![mklyml editor — three-pane view with source, preview, and style inspector in neon-pulse theme](https://raw.githubusercontent.com/HubDev-AI/mklyml-editor/main/docs/images/editor-full.png)
 
 Three panes, all synchronized:
 
@@ -24,7 +24,7 @@ Three panes, all synchronized:
 
 ## What You Can Build
 
-![Side-by-side comparison of light and dark editor themes](docs/images/theme-compare.png)
+![mklyml editor with brutalist preset — thick borders, uppercase, sharp corners](https://raw.githubusercontent.com/HubDev-AI/mklyml-editor/main/docs/images/editor-brutalist.png)
 
 **Newsletters** — Load the [newsletter kit](https://github.com/HubDev-AI/mklyml-kits) with 14 blocks, 19 themes, and 7 presets. Write a newsletter in the editor, preview it live, compile to email HTML with the [email plugin](https://github.com/HubDev-AI/mklyml-plugins).
 
@@ -32,7 +32,7 @@ Three panes, all synchronized:
 
 **Any structured content** — Cards, heroes, CTAs, images, lists, quotes. The 16 core blocks cover general-purpose web content.
 
-![mklyml editor in light theme with editorial preset applied](docs/images/editor-light-theme.png)
+![mklyml editor in light theme with editorial preset applied](https://raw.githubusercontent.com/HubDev-AI/mklyml-editor/main/docs/images/editor-light-theme.png)
 
 ## How the Inspector Works
 
@@ -44,7 +44,7 @@ Three panes, all synchronized:
 | `--- theme: ...` | Theme variables and color palette |
 | `--- preset: ...` | Preset spacing and typography |
 
-![Style inspector panel showing CSS property controls for color, spacing, and typography](docs/images/editor-style-inspector.png)
+![Style inspector panel showing CSS property controls for color, spacing, and typography](https://raw.githubusercontent.com/HubDev-AI/mklyml-editor/main/docs/images/editor-style-inspector.png)
 
 Style controls are generated from a data-driven schema:
 
@@ -58,16 +58,16 @@ Every change patches the `--- style` block in your source — the cursor adjusts
 
 ## Email Output
 
-![Email output tab showing compiled HTML ready for sending](docs/images/editor-email.png)
+![Email output tab showing compiled HTML ready for sending](https://raw.githubusercontent.com/HubDev-AI/mklyml-editor/main/docs/images/editor-email.png)
 
 The editor includes output tabs for compiled HTML and email-ready markup. With the [email plugin](https://github.com/HubDev-AI/mklyml-plugins), CSS is inlined and the output is ready for any email service provider.
 
 ## Embed in Your App
 
 ```typescript
-import { MklymlEditor } from '@milkly/mklyml-editor';
-import { CORE_KIT } from '@milkly/mklyml';
-import { NEWSLETTER_KIT } from '@mklyml-kits/newsletter';
+import { MklymlEditor } from '@mklyml/editor';
+import { CORE_KIT } from '@mklyml/core';
+import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 
 function App() {
   return (

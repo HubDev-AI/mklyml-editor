@@ -38,7 +38,7 @@ export function GlassToolbar() {
         color: 'var(--ed-accent)',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}>
-        mkly
+        mklyml
       </span>
 
       {/* Sidebar toggle (blocks panel) */}
@@ -56,7 +56,7 @@ export function GlassToolbar() {
       {/* mkly word wrap (left side) */}
       <ToolbarButton
         onClick={() => setMklyWordWrap(!mklyWordWrap)}
-        title={mklyWordWrap ? 'Disable mkly word wrap' : 'Enable mkly word wrap'}
+        title={mklyWordWrap ? 'Disable mklyml word wrap' : 'Enable mklyml word wrap'}
         active={mklyWordWrap}
       >
         <IconWordWrap />
