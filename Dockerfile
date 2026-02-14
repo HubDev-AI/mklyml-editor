@@ -38,10 +38,10 @@ RUN bun run build
 # Stage 3: Serve with nginx
 FROM nginx:alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/mkly-editor/dist /usr/share/nginx/html
 
-EXPOSE 80
+ENV PORT=80
 
 RUN sed -i 's/worker_processes\s*auto/worker_processes 2/' /etc/nginx/nginx.conf
 
