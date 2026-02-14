@@ -102,11 +102,25 @@ function App() {
 
 ```bash
 bun install
-bun run dev    # Vite dev server
-bun run build  # production build
+bun run dev    # Vite dev server at localhost:4321
+bun run build  # production build → dist/
 ```
 
 Built with CodeMirror 6, React 18, Zustand, and Vite.
+
+## Docker
+
+Build and run the editor in a container. The build context is the monorepo root because the editor imports from sibling packages (`@milkly/mkly`, `@mkly-kits/newsletter`, `@mkly-plugins/email`).
+
+```bash
+# From the monorepo root:
+docker build -f mkly-editor/Dockerfile -t mkly-editor .
+
+# Run on port 8080:
+docker run -p 8080:80 mkly-editor
+```
+
+Opens at `http://localhost:8080`. The container serves the static build with nginx (~25MB image).
 
 ## Related
 
