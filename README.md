@@ -4,7 +4,7 @@ A visual editor for [mklyml](https://github.com/HubDev-AI/mklyml) documents — 
 
 <p>
   <a href="https://mklyml-editor.hubdev.ai"><strong>Open the Live Editor →</strong></a> &nbsp;·&nbsp;
-  <a href="https://hubdev.ai/projects/mklyml/docs">Documentation</a> &nbsp;·&nbsp;
+  <a href="https://mklyml-docs.hubdev.ai">Documentation</a> &nbsp;·&nbsp;
   <a href="https://github.com/HubDev-AI/mklyml-editor">GitHub</a>
 </p>
 
@@ -28,7 +28,7 @@ Three panes, all synchronized:
 
 **Newsletters** — Load the [newsletter kit](https://github.com/HubDev-AI/mklyml-kits) with 14 blocks, 19 themes, and 17 presets. Write a newsletter in the editor, preview it live, compile to email HTML with the [email plugin](https://github.com/HubDev-AI/mklyml-plugins).
 
-**Documentation** — Load the [docs kit](https://github.com/HubDev-AI/mklyml-kits) with code examples, callouts, tabs, API references. The [mklyml docs site](https://hubdev.ai/projects/mklyml/docs) is built this way.
+**Documentation** — Load the [docs kit](https://github.com/HubDev-AI/mklyml-kits) with code examples, callouts, tabs, API references. The [mklyml docs site](https://mklyml-docs.hubdev.ai) is built this way.
 
 **Any structured content** — Cards, heroes, CTAs, images, lists, quotes. The 16 core blocks cover general-purpose web content.
 
@@ -121,4 +121,4 @@ Built with CodeMirror 6, React 18, Zustand, and Vite.
 - **[mklyml-plugins](https://github.com/HubDev-AI/mklyml-plugins)** — Email plugin (CSS inlining) + Docs plugin (anchors, tabs)
 - **[mklyml-docs](https://github.com/HubDev-AI/mklyml-docs)** — Documentation site
 
-> **[Full documentation →](https://hubdev.ai/projects/mklyml/docs)**
+> **[Full documentation →](https://mklyml-docs.hubdev.ai)**
