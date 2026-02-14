@@ -2,6 +2,7 @@
   "name": "@mklyml/editor",
   "private": true,
   "version": "0.1.1",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
     "dev": "bunx --bun vite",
@@ -34,6 +35,7 @@
     "@types/react-dom": "18.3.5",
     "@vitejs/plugin-react": "5.0.0",
     "agentation": "2.2.1",
+    "terser": "5.37.0",
     "typescript": "5.8.2",
     "vite": "6.3.5"
   }

@@ -21,4 +21,29 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@mklyml/core', '@mklyml/kits', '@mklyml/plugins'],
   },
+  build: {
+    sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        passes: 2,
+      },
+      mangle: {
+        toplevel: true,
+        properties: {
+          regex: /^_/,
+        },
+      },
+      format: {
+        comments: false,
+      },
+    },
+    rollupOptions: {
+      output: {
+        banner: '/*! MklyML Editor - Proprietary and Confidential. All Rights Reserved. */',
+      },
+    },
+  },
 });
