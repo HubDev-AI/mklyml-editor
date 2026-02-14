@@ -1,62 +1,117 @@
-# @milkly/mkly-editor
+# mkly editor
 
-> Visual editor for mkly — CodeMirror 6 source editor, live HTML preview, and a schema-driven style inspector.
+A visual editing environment for mkly documents with live preview and style inspector.
 
-## Overview
+<p>
+  <a href="https://hubdev.ai/playground/mkly-editor">Try the Live Editor</a> &nbsp;·&nbsp;
+  <a href="https://hubdev.ai/projects/mkly/docs">Documentation</a> &nbsp;·&nbsp;
+  <a href="https://github.com/HubDev-AI/mkly-editor">GitHub</a>
+</p>
 
-The mkly editor is a split-pane editing environment with three synchronized views:
+---
 
-**Source Editor** — CodeMirror 6 with mkly syntax highlighting, block-aware autocompletion, property validation, and cursor-context tracking.
+<!-- Screenshot: Full editor with 3 panes -->
+<!-- Add: docs/images/editor-full.png -->
+![mkly editor — source, preview, and style inspector](../docs/images/editor-full.png)
 
-**Live Preview** — Real-time HTML output rendered in an iframe. Supports both view-only and WYSIWYG editable modes with bidirectional sync between source and preview.
+The editor is a three-pane environment where everything stays in sync. Write mkly source on the left, see the compiled HTML on the right, and tweak styles in an inspector panel — all in real time.
 
-**Style Inspector** — A data-driven property panel that adapts to the block under the cursor. Shows relevant CSS properties grouped by sector (Layout, Sizing, Spacing, Typography, Background, Border, Effects, Animation) with controls generated from the style schema.
+> **[Open the live editor →](https://hubdev.ai/playground/mkly-editor)**
+
+## Source Pane
+
+<!-- Screenshot: Source pane closeup showing syntax highlighting and gutters -->
+<!-- Add: docs/images/editor-source.png -->
+![Source pane with syntax highlighting and colored block gutters](../docs/images/editor-source.png)
+
+A CodeMirror 6 editor with:
+
+- **mkly syntax highlighting** — blocks, properties, content, and style blocks each have distinct colors
+- **Colored block gutters** — each block type gets a color bar in the gutter so you can scan the document structure at a glance
+- **Autocomplete** — block names, property names, and property values complete as you type. Kit-aware: if you've loaded the newsletter kit, newsletter blocks appear in completions
+- **Validation** — unknown properties or invalid values are flagged inline
+
+## Preview Pane
+
+<!-- Screenshot: Preview pane showing a rendered newsletter -->
+<!-- Add: docs/images/editor-preview.png -->
+![Live preview of a newsletter with the sunset-boulevard theme](../docs/images/editor-preview.png)
+
+The preview renders your document in a sandboxed iframe. It updates as you type — no save step, no refresh.
+
+The preview can also run in **WYSIWYG mode**: edit text directly in the preview and the changes are reverse-converted back to mkly source. The source pane updates to match.
+
+## Style Inspector
+
+<!-- Screenshot: Style inspector with tabs, color pickers, spacing inputs -->
+<!-- Add: docs/images/editor-inspector.png -->
+![Style inspector showing Self tab with color picker, spacing inputs, and border radius](../docs/images/editor-inspector.png)
+
+The inspector is context-aware — it changes based on what's under your cursor:
+
+| Cursor on... | Inspector shows... |
+|---|---|
+| `--- core/card` | Block properties (image, link, etc.) |
+| `--- style` block | CSS controls for the targeted block |
+| `--- meta` | Document metadata fields |
+| `--- theme: ...` | Theme info and variables |
+| `--- preset: ...` | Preset info and applied styles |
+
+When editing styles, the inspector shows **tabs for each target**: Self, Hover, Image, Link, Body — depending on the block type. A card gets image and link tabs. A divider gets just height and color. The available controls are determined by `styleHints` on each block definition.
+
+Controls are generated from a data-driven schema:
+
+- **Color pickers** for `color`, `background`, `border-color`
+- **Spacing inputs** for `padding`, `margin`, `gap`
+- **Alignment buttons** for `text-align`, `justify-content`
+- **Dropdowns** for `display`, `cursor`, `overflow`
+- **Sliders** for `opacity`, `border-radius`
+- **Text inputs** for `font-family`, `box-shadow`, custom values
+
+Every change in the inspector patches the `--- style` block in your source. The cursor position is adjusted by the line delta so the editor doesn't jump.
 
 ## Architecture
 
 ```
 Source (CodeMirror) ←→ Store (Zustand) ←→ Preview (iframe)
-                           ↕
-                    Style Inspector
-                           ↕
-                    StyleGraph (immutable)
+                            ↕
+                     Style Inspector
+                            ↕
+                     StyleGraph (immutable)
 ```
 
-The editor uses a Zustand store as the single source of truth. Source changes trigger recompilation. Preview edits are reverse-converted to mkly and patched back into the source. Style inspector changes mutate the StyleGraph immutably and serialize it back to the `--- style` block.
+The store holds the document source. Source changes trigger recompilation through the mkly compiler. Style inspector changes mutate the StyleGraph immutably and serialize it back into the `--- style` block. The preview iframe receives the compiled HTML + CSS and renders it.
 
-## Key Components
+## Embed in Your App
 
-### Editor
-- `MklyEditor` — CodeMirror 6 wrapper with mkly language mode, block-color gutter decorations, and diff-based document updates that preserve cursor position.
+```typescript
+import { MklyEditor } from '@milkly/mkly-editor';
 
-### Inspector
-- `PropertyInspector` — Routes to the correct inspector based on cursor context (block properties, style editor, meta, theme info, preset info).
-- `StyleEditor` — Schema-driven CSS editor with per-target tabs (Self, Hover, Image, Link, etc.). Filters available properties using the block's `styleHints`. Renders controls dynamically: color pickers, spacing inputs, alignment buttons, select dropdowns, sliders, text fields.
-- `PropertyForm` — Block property editor with schema-validated fields.
-
-### Preview
-- `PreviewPane` — Iframe-based live preview with view/edit mode toggle.
-- `EditablePreview` — WYSIWYG editing within the preview. Handles contentEditable, block selection, and reverse conversion.
-- `SyncEngine` — Bidirectional sync between source and preview using diff-match-patch for minimal updates.
-
-### Store
-- `editor-store.ts` — Central Zustand store: source text, compiled output, cursor position, theme/preset selection, panel visibility.
-- `block-properties.ts` — Style mutations (`applyStyleChange`) that return `lineDelta` for cursor adjustment after source patching.
-- `use-cursor-context.ts` — Derives the block type, label, and target under the cursor from the source text.
+function App() {
+  return (
+    <MklyEditor
+      initialSource={source}
+      kits={{ core: CORE_KIT, newsletter: NEWSLETTER_KIT }}
+      onChange={(source) => console.log(source)}
+    />
+  );
+}
+```
 
 ## Development
 
 ```bash
 bun install
 bun run dev    # Vite dev server
-bun run build  # Production build
+bun run build  # production build
 ```
 
-## Tech Stack
+Built with CodeMirror 6, React 18, Zustand, and Vite.
 
-- **Editor**: CodeMirror 6
-- **State**: Zustand 4
-- **Compile**: `@milkly/mkly` (real-time)
-- **Preview**: iframe with postMessage
-- **Sync**: diff-match-patch
-- **Build**: Vite
+## Related
+
+- **[@milkly/mkly](https://github.com/HubDev-AI/mkly)** — Core language (parser, compiler, style system)
+- **[mkly-kits](https://github.com/HubDev-AI/mkly-kits)** — Newsletter and docs block kits
+- **[mkly-plugins](https://github.com/HubDev-AI/mkly-plugins)** — Email and docs output plugins
+
+> **[Full documentation →](https://hubdev.ai/projects/mkly/docs)**
