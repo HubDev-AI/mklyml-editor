@@ -3,7 +3,7 @@
 A visual editor for [mklyml](https://github.com/HubDev-AI/mklyml) documents — source editing, live preview, and style inspector in one view.
 
 <p>
-  <a href="https://hubdev.ai/playground/mklyml-editor"><strong>Open the Live Editor →</strong></a> &nbsp;·&nbsp;
+  <a href="https://editor.hubdev.ai"><strong>Open the Live Editor →</strong></a> &nbsp;·&nbsp;
   <a href="https://hubdev.ai/projects/mklyml/docs">Documentation</a> &nbsp;·&nbsp;
   <a href="https://github.com/HubDev-AI/mklyml-editor">GitHub</a>
 </p>
@@ -20,7 +20,7 @@ Three panes, all synchronized:
 
 **Style Inspector** — Context-aware panel that changes based on your cursor. On a block: see its properties. On a style block: see CSS controls — color pickers, spacing inputs, alignment buttons, dropdowns, sliders. The inspector reads each block's `styleHints` to show only relevant controls.
 
-> **[Try it →](https://hubdev.ai/playground/mklyml-editor)**
+> **[Try it →](https://editor.hubdev.ai)**
 
 ## What You Can Build
 
