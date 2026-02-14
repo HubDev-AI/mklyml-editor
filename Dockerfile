@@ -43,4 +43,6 @@ COPY --from=build /app/mkly-editor/dist /usr/share/nginx/html
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off; worker_processes 2;"]
+RUN sed -i 's/worker_processes\s*auto/worker_processes 2/' /etc/nginx/nginx.conf
+
+CMD ["nginx", "-g", "daemon off;"]
