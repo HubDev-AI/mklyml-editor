@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useBlockDock } from './use-block-dock';
 import { BlockDockItem } from './BlockDockItem';
 import { useEditorStore } from '../store/editor-store';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 interface BlockDockProps {
   completionData: CompletionData;

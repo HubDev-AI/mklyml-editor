@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import type { BlockDockEntry } from './use-block-dock';
 import { BlockHelpPopover } from './BlockHelpPopover';
-import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData } from '@mklyml/core';
 
 interface BlockDockItemProps {
   block: BlockDockEntry;

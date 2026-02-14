@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
-import { mkly, htmlToMkly, CORE_KIT } from '@milkly/mkly';
-import { NEWSLETTER_KIT } from '@mkly-kits/newsletter';
+import { mkly, htmlToMkly, CORE_KIT } from '@mklyml/core';
+import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 import { findBlockByOriginalLine, ensurePreamble, cleanHtmlForReverse } from './reverse-helpers';
 import { resolveBlockLine } from '../store/selection-orchestrator';
 

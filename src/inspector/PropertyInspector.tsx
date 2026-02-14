@@ -13,7 +13,7 @@ import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
 import { applyPropertyChange, applyStyleChange } from '../store/block-properties';
 import type { CursorBlock } from '../store/use-cursor-context';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 interface PropertyInspectorProps {
   cursorBlock: CursorBlock | null;

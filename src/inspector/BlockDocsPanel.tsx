@@ -1,4 +1,4 @@
-import type { BlockDocs } from '@milkly/mkly';
+import type { BlockDocs } from '@mklyml/core';
 import { UsagePreview } from '../ui/usage-preview';
 
 interface BlockDocsPanelProps {

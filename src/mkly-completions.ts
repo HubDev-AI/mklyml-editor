@@ -1,5 +1,5 @@
 import type { CompletionContext, CompletionResult, Completion } from '@codemirror/autocomplete';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 const STYLE_CSS_PROPERTIES = [
   'bg', 'fg', 'rounded', 'padding', 'margin', 'color', 'background',

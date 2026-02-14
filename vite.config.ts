@@ -9,12 +9,16 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@milkly/mkly': path.resolve(__dirname, '../mkly/src/index.ts'),
-      '@mkly-kits/newsletter': path.resolve(__dirname, '../mkly-kits/newsletter/src/index.ts'),
-      '@mkly-plugins/email': path.resolve(__dirname, '../mkly-plugins/email/src/index.ts'),
+      '@mklyml/core': path.resolve(__dirname, '../mkly/src/index.ts'),
+      '@mklyml/kits/newsletter': path.resolve(__dirname, '../mkly-kits/newsletter/src/index.ts'),
+      '@mklyml/kits/docs': path.resolve(__dirname, '../mkly-kits/docs/src/index.ts'),
+      '@mklyml/plugins/email': path.resolve(__dirname, '../mkly-plugins/email/src/index.ts'),
+      '@mklyml/plugins/docs': path.resolve(__dirname, '../mkly-plugins/docs/src/index.ts'),
+      '@mklyml/plugins/seo': path.resolve(__dirname, '../mkly-plugins/seo/src/index.ts'),
+      '@mklyml/plugins/newsletter-ai': path.resolve(__dirname, '../mkly-plugins/newsletter-ai/src/index.ts'),
     },
   },
   optimizeDeps: {
-    exclude: ['@milkly/mkly', '@mkly-kits/newsletter', '@mkly-plugins/email'],
+    exclude: ['@mklyml/core', '@mklyml/kits', '@mklyml/plugins'],
   },
 });

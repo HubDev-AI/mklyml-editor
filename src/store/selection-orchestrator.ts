@@ -1,4 +1,4 @@
-import type { SourceMapEntry } from '@milkly/mkly';
+import type { SourceMapEntry } from '@mklyml/core';
 import type { FocusOrigin, FocusIntent } from './editor-store';
 
 const SPECIAL_TYPES = new Set(['use', 'meta', 'theme', 'style']);

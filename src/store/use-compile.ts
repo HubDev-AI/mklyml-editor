@@ -1,8 +1,8 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { mkly, htmlToMkly, CORE_KIT, createCompletionData, escapeHtml } from '@milkly/mkly';
-import type { ParseError } from '@milkly/mkly';
-import { NEWSLETTER_KIT } from '@mkly-kits/newsletter';
-import { emailPlugin } from '@mkly-plugins/email';
+import { mkly, htmlToMkly, CORE_KIT, createCompletionData, escapeHtml } from '@mklyml/core';
+import type { ParseError } from '@mklyml/core';
+import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
+import { emailPlugin } from '@mklyml/plugins/email';
 import { useEditorStore } from './editor-store';
 
 const KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };

@@ -4,8 +4,8 @@ import {
   serializeStyleGraph,
   parseStyleGraph,
   emptyStyleGraph,
-} from '@milkly/mkly';
-import type { StyleGraph } from '@milkly/mkly';
+} from '@mklyml/core';
+import type { StyleGraph } from '@mklyml/core';
 
 /**
  * Property regex: matches mkly property lines like `key: value`.

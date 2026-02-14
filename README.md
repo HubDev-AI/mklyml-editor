@@ -1,95 +1,77 @@
-# mkly editor
+# mklyml editor
 
-A visual editing environment for mkly documents with live preview and style inspector.
+A visual editor for [mklyml](https://github.com/HubDev-AI/mklyml) documents — source editing, live preview, and style inspector in one view.
 
 <p>
-  <a href="https://hubdev.ai/playground/mkly-editor">Try the Live Editor</a> &nbsp;·&nbsp;
-  <a href="https://hubdev.ai/projects/mkly/docs">Documentation</a> &nbsp;·&nbsp;
-  <a href="https://github.com/HubDev-AI/mkly-editor">GitHub</a>
+  <a href="https://hubdev.ai/playground/mklyml-editor"><strong>Open the Live Editor →</strong></a> &nbsp;·&nbsp;
+  <a href="https://hubdev.ai/projects/mklyml/docs">Documentation</a> &nbsp;·&nbsp;
+  <a href="https://github.com/HubDev-AI/mklyml-editor">GitHub</a>
 </p>
 
 ---
 
-<!-- Screenshot: Full editor with 3 panes -->
-<!-- Add: docs/images/editor-full.png -->
-![mkly editor — source, preview, and style inspector](../docs/images/editor-full.png)
+![mklyml editor — three-pane view with source, preview, and style inspector in neon-pulse theme](docs/images/editor-full.png)
 
-The editor is a three-pane environment where everything stays in sync. Write mkly source on the left, see the compiled HTML on the right, and tweak styles in an inspector panel — all in real time.
+Three panes, all synchronized:
 
-> **[Open the live editor →](https://hubdev.ai/playground/mkly-editor)**
+**Source** — CodeMirror 6 with mklyml syntax highlighting, colored block gutters, autocomplete for block names and properties, inline validation.
 
-## Source Pane
+**Preview** — Live rendered HTML in an iframe. Updates as you type. Supports WYSIWYG mode — edit text in the preview and changes are reverse-converted back to mklyml source.
 
-<!-- Screenshot: Source pane closeup showing syntax highlighting and gutters -->
-<!-- Add: docs/images/editor-source.png -->
-![Source pane with syntax highlighting and colored block gutters](../docs/images/editor-source.png)
+**Style Inspector** — Context-aware panel that changes based on your cursor. On a block: see its properties. On a style block: see CSS controls — color pickers, spacing inputs, alignment buttons, dropdowns, sliders. The inspector reads each block's `styleHints` to show only relevant controls.
 
-A CodeMirror 6 editor with:
+> **[Try it →](https://hubdev.ai/playground/mklyml-editor)**
 
-- **mkly syntax highlighting** — blocks, properties, content, and style blocks each have distinct colors
-- **Colored block gutters** — each block type gets a color bar in the gutter so you can scan the document structure at a glance
-- **Autocomplete** — block names, property names, and property values complete as you type. Kit-aware: if you've loaded the newsletter kit, newsletter blocks appear in completions
-- **Validation** — unknown properties or invalid values are flagged inline
+## What You Can Build
 
-## Preview Pane
+![Side-by-side comparison of light and dark editor themes](docs/images/theme-compare.png)
 
-<!-- Screenshot: Preview pane showing a rendered newsletter -->
-<!-- Add: docs/images/editor-preview.png -->
-![Live preview of a newsletter with the sunset-boulevard theme](../docs/images/editor-preview.png)
+**Newsletters** — Load the [newsletter kit](https://github.com/HubDev-AI/mklyml-kits) with 14 blocks, 19 themes, and 7 presets. Write a newsletter in the editor, preview it live, compile to email HTML with the [email plugin](https://github.com/HubDev-AI/mklyml-plugins).
 
-The preview renders your document in a sandboxed iframe. It updates as you type — no save step, no refresh.
+**Documentation** — Load the [docs kit](https://github.com/HubDev-AI/mklyml-kits) with code examples, callouts, tabs, API references. The [mklyml docs site](https://hubdev.ai/projects/mklyml/docs) is built this way.
 
-The preview can also run in **WYSIWYG mode**: edit text directly in the preview and the changes are reverse-converted back to mkly source. The source pane updates to match.
+**Any structured content** — Cards, heroes, CTAs, images, lists, quotes. The 16 core blocks cover general-purpose web content.
 
-## Style Inspector
+![mklyml editor in light theme with editorial preset applied](docs/images/editor-light-theme.png)
 
-<!-- Screenshot: Style inspector with tabs, color pickers, spacing inputs -->
-<!-- Add: docs/images/editor-inspector.png -->
-![Style inspector showing Self tab with color picker, spacing inputs, and border radius](../docs/images/editor-inspector.png)
-
-The inspector is context-aware — it changes based on what's under your cursor:
+## How the Inspector Works
 
 | Cursor on... | Inspector shows... |
 |---|---|
-| `--- core/card` | Block properties (image, link, etc.) |
-| `--- style` block | CSS controls for the targeted block |
-| `--- meta` | Document metadata fields |
-| `--- theme: ...` | Theme info and variables |
-| `--- preset: ...` | Preset info and applied styles |
+| `--- newsletter/featured` | Block properties — source, author, link, image |
+| `--- style` block | CSS controls for the targeted block type |
+| `--- meta` | Document metadata — title, subject, preheader |
+| `--- theme: ...` | Theme variables and color palette |
+| `--- preset: ...` | Preset spacing and typography |
 
-When editing styles, the inspector shows **tabs for each target**: Self, Hover, Image, Link, Body — depending on the block type. A card gets image and link tabs. A divider gets just height and color. The available controls are determined by `styleHints` on each block definition.
+![Style inspector panel showing CSS property controls for color, spacing, and typography](docs/images/editor-style-inspector.png)
 
-Controls are generated from a data-driven schema:
+Style controls are generated from a data-driven schema:
 
 - **Color pickers** for `color`, `background`, `border-color`
 - **Spacing inputs** for `padding`, `margin`, `gap`
 - **Alignment buttons** for `text-align`, `justify-content`
-- **Dropdowns** for `display`, `cursor`, `overflow`
+- **Dropdowns** for `display`, `cursor`, `overflow`, `font-family`
 - **Sliders** for `opacity`, `border-radius`
-- **Text inputs** for `font-family`, `box-shadow`, custom values
 
-Every change in the inspector patches the `--- style` block in your source. The cursor position is adjusted by the line delta so the editor doesn't jump.
+Every change patches the `--- style` block in your source — the cursor adjusts by the line delta so the editor doesn't jump.
 
-## Architecture
+## Email Output
 
-```
-Source (CodeMirror) ←→ Store (Zustand) ←→ Preview (iframe)
-                            ↕
-                     Style Inspector
-                            ↕
-                     StyleGraph (immutable)
-```
+![Email output tab showing compiled HTML ready for sending](docs/images/editor-email.png)
 
-The store holds the document source. Source changes trigger recompilation through the mkly compiler. Style inspector changes mutate the StyleGraph immutably and serialize it back into the `--- style` block. The preview iframe receives the compiled HTML + CSS and renders it.
+The editor includes output tabs for compiled HTML and email-ready markup. With the [email plugin](https://github.com/HubDev-AI/mklyml-plugins), CSS is inlined and the output is ready for any email service provider.
 
 ## Embed in Your App
 
 ```typescript
-import { MklyEditor } from '@milkly/mkly-editor';
+import { MklymlEditor } from '@milkly/mklyml-editor';
+import { CORE_KIT } from '@milkly/mklyml';
+import { NEWSLETTER_KIT } from '@mklyml-kits/newsletter';
 
 function App() {
   return (
-    <MklyEditor
+    <MklymlEditor
       initialSource={source}
       kits={{ core: CORE_KIT, newsletter: NEWSLETTER_KIT }}
       onChange={(source) => console.log(source)}
@@ -98,34 +80,45 @@ function App() {
 }
 ```
 
+## Architecture
+
+```
+Source (CodeMirror) <-> Store (Zustand) <-> Preview (iframe)
+                            |
+                     Style Inspector
+                            |
+                     StyleGraph (immutable)
+```
+
+Source changes trigger recompilation through the mklyml compiler. Inspector changes mutate the StyleGraph immutably and serialize it back into the `--- style` block. The preview iframe receives compiled HTML + CSS.
+
+## Docker
+
+```bash
+# From the workspace root:
+docker build -f milkly-mklyml/mkly-editor/Dockerfile -t mklyml-editor .
+
+# Run on port 8080:
+docker run -p 8080:80 mklyml-editor
+```
+
+The container serves the static build with nginx (~25MB image).
+
 ## Development
 
 ```bash
 bun install
 bun run dev    # Vite dev server at localhost:4321
-bun run build  # production build → dist/
+bun run build  # production build -> dist/
 ```
 
 Built with CodeMirror 6, React 18, Zustand, and Vite.
 
-## Docker
-
-Build and run the editor in a container. The build context is the monorepo root because the editor imports from sibling packages (`@milkly/mkly`, `@mkly-kits/newsletter`, `@mkly-plugins/email`).
-
-```bash
-# From the monorepo root:
-docker build -f mkly-editor/Dockerfile -t mkly-editor .
-
-# Run on port 8080:
-docker run -p 8080:80 mkly-editor
-```
-
-Opens at `http://localhost:8080`. The container serves the static build with nginx (~25MB image).
-
 ## Related
 
-- **[@milkly/mkly](https://github.com/HubDev-AI/mkly)** — Core language (parser, compiler, style system)
-- **[mkly-kits](https://github.com/HubDev-AI/mkly-kits)** — Newsletter and docs block kits
-- **[mkly-plugins](https://github.com/HubDev-AI/mkly-plugins)** — Email and docs output plugins
+- **[mklyml](https://github.com/HubDev-AI/mklyml)** — Core language (parser, compiler, style system)
+- **[mklyml-kits](https://github.com/HubDev-AI/mklyml-kits)** — Newsletter kit (14 blocks, 19 themes) + Docs kit (15 blocks)
+- **[mklyml-plugins](https://github.com/HubDev-AI/mklyml-plugins)** — Email plugin (CSS inlining) + Docs plugin (anchors, tabs)
+- **[mklyml-docs](https://github.com/HubDev-AI/mklyml-docs)** — Documentation site
 
-> **[Full documentation →](https://hubdev.ai/projects/mkly/docs)**
+> **[Full documentation →](https://hubdev.ai/projects/mklyml/docs)**

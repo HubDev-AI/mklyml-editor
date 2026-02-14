@@ -11,7 +11,7 @@ import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { useCursorContext } from '../store/use-cursor-context';
 import { useUndoInit } from '../store/use-undo';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 interface EditorShellProps {
   completionData: CompletionData;

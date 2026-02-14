@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 import { useEditorStore } from '../store/editor-store';
 
 /** Parse the gapScale value from a `--- style` block in mkly source. */

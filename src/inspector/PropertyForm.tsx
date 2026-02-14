@@ -1,5 +1,5 @@
 import { PropertyField } from './PropertyField';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 interface PropertyFormProps {
   blockType: string;

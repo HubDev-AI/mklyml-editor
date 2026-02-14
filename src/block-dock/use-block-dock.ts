@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { getBlockDisplayName, type CompletionData, type BlockDocs } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData, type BlockDocs } from '@mklyml/core';
 import { useEditorStore } from '../store/editor-store';
 
 export interface BlockDockEntry {

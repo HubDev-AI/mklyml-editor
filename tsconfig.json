@@ -14,9 +14,13 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@milkly/mkly": ["../mkly/src/index.ts"],
-      "@mkly-kits/newsletter": ["../mkly-kits/newsletter/src/index.ts"],
-      "@mkly-plugins/email": ["../mkly-plugins/email/src/index.ts"]
+      "@mklyml/core": ["../mkly/src/index.ts"],
+      "@mklyml/kits/newsletter": ["../mkly-kits/newsletter/src/index.ts"],
+      "@mklyml/kits/docs": ["../mkly-kits/docs/src/index.ts"],
+      "@mklyml/plugins/email": ["../mkly-plugins/email/src/index.ts"],
+      "@mklyml/plugins/docs": ["../mkly-plugins/docs/src/index.ts"],
+      "@mklyml/plugins/seo": ["../mkly-plugins/seo/src/index.ts"],
+      "@mklyml/plugins/newsletter-ai": ["../mkly-plugins/newsletter-ai/src/index.ts"]
     }
   },
   "include": ["src"]

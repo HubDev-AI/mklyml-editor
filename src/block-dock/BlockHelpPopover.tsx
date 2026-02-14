@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getBlockDisplayName, type BlockDocs } from '@milkly/mkly';
+import { getBlockDisplayName, type BlockDocs } from '@mklyml/core';
 import { KitBadge } from '../ui/kit-badge';
 import { useEditorStore } from '../store/editor-store';
 import { IFRAME_DARK_CSS } from '../preview/iframe-dark-css';

@@ -1,5 +1,5 @@
 import type { MklyIconProps } from './icon-types';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 const defaults = { size: 16 };
 

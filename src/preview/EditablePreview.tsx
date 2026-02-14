@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editor-store';
-import { mkly } from '@milkly/mkly';
+import { mkly } from '@mklyml/core';
 import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';

@@ -1,6 +1,6 @@
 import { EditorView, Decoration, type DecorationSet, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import type { CompletionData } from '@milkly/mkly';
+import type { CompletionData } from '@mklyml/core';
 
 /**
  * CodeMirror ViewPlugin that colors block type names on `--- blockType` lines

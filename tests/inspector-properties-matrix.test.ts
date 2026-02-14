@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { parseCursorBlock } from '../src/store/use-cursor-context';
 import { applyPropertyChange, applyStyleChange, parseSourceStyleGraph } from '../src/store/block-properties';
-import { emptyStyleGraph, getStyleValue } from '@milkly/mkly';
+import { emptyStyleGraph, getStyleValue } from '@mklyml/core';
 
 // ---------------------------------------------------------------------------
 // Block configuration types

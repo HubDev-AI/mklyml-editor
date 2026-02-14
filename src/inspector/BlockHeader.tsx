@@ -1,6 +1,6 @@
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
-import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData } from '@mklyml/core';
 
 interface BlockHeaderProps {
   type: string;

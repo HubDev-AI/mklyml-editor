@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { PropertyType } from '@milkly/mkly';
+import type { PropertyType } from '@mklyml/core';
 
 interface PropertyFieldProps {
   name: string;

@@ -7,8 +7,8 @@ import {
   DEFAULT_SELF_SECTORS,
   HOVER_SECTOR,
   TARGET_SECTORS,
-} from '@milkly/mkly';
-import type { StyleGraph, StyleSector, StylePropertyDef, TargetInfo } from '@milkly/mkly';
+} from '@mklyml/core';
+import type { StyleGraph, StyleSector, StylePropertyDef, TargetInfo } from '@mklyml/core';
 
 interface StyleEditorProps {
   blockType: string;

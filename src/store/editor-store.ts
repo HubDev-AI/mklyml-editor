@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ParseError, CompileError, SourceMapEntry, StyleGraph } from '@milkly/mkly';
+import type { ParseError, CompileError, SourceMapEntry, StyleGraph } from '@mklyml/core';
 import { resolveBlockLine } from './selection-orchestrator';
 import type { UndoInfo } from './undo-manager';
 

@@ -1,5 +1,5 @@
-import { htmlToMkly, CORE_KIT } from '@milkly/mkly';
-import { NEWSLETTER_KIT } from '@mkly-kits/newsletter';
+import { htmlToMkly, CORE_KIT } from '@mklyml/core';
+import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 
 export const MKLY_KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
 

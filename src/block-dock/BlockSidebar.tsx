@@ -4,7 +4,7 @@ import { useBlockDock, type BlockDockEntry } from './use-block-dock';
 import { IconSearch } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
 import { BlockHelpPopover } from './BlockHelpPopover';
-import { getBlockDisplayName, type CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type CompletionData } from '@mklyml/core';
 
 interface BlockSidebarProps {
   completionData: CompletionData;

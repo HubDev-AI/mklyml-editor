@@ -1,4 +1,4 @@
-import { getBlockDisplayName, type KitInfo, type CompletionData } from '@milkly/mkly';
+import { getBlockDisplayName, type KitInfo, type CompletionData } from '@mklyml/core';
 
 interface KitInfoPanelProps {
   kitName: string;
