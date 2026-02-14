@@ -111,7 +111,7 @@ interface EditorState {
 }
 
 const EXAMPLE = `// A sample newsletter -- edit this!
-// Kits are activated with --- use 
+// Kits are activated with --- use
 // Themes are collections of colors that can be applied with --- theme
 // Presets are layout templates that can be applied with --- preset
 
@@ -126,14 +126,23 @@ title: Weekly Digest
 subject: What happened this week
 
 --- style
-// Try changing these!
+
 accent: #e2725b
 fontBody: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif
 radius: 8px
 gapScale: 0.65
 
 core/heading
-  letterSpacing: -0.5px
+  letter-spacing: -0.5px
+
+core/card
+  .img
+    text-align: center
+
+newsletter/sponsor
+  .img
+    text-align: center
+
 
 --- core/header
 logo: https://milkly.app/logo.png

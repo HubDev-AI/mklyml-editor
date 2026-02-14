@@ -329,7 +329,7 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
             justifyContent: 'space-between',
             marginBottom: 6,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, position: 'relative' }}>
               <span style={{
                 fontSize: 10,
                 fontWeight: 700,
@@ -362,25 +362,30 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
               >
                 ?
               </button>
+              {showGapHelp && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: 0,
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  color: 'var(--ed-text-muted)',
+                  background: 'var(--ed-bg, #1a1a1a)',
+                  border: '1px solid var(--ed-border)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  zIndex: 10,
+                  width: 200,
+                }}>
+                  Controls the vertical space between content blocks.
+                  <strong style={{ color: 'var(--ed-text)' }}> 1.0x</strong> is the preset default.
+                  Set to <strong style={{ color: 'var(--ed-text)' }}>0</strong> for no gaps,
+                  increase for more breathing room.
+                </div>
+              )}
             </div>
-          {showGapHelp && (
-            <div style={{
-              fontSize: 10,
-              lineHeight: 1.5,
-              color: 'var(--ed-text-muted)',
-              background: 'var(--ed-surface)',
-              border: '1px solid var(--ed-border)',
-              borderRadius: 6,
-              padding: '8px 10px',
-              marginBottom: 6,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}>
-              Controls the vertical space between content blocks.
-              <strong style={{ color: 'var(--ed-text)' }}> 1.0x</strong> is the preset default.
-              Set to <strong style={{ color: 'var(--ed-text)' }}>0</strong> for no gaps,
-              increase for more breathing room.
-            </div>
-          )}
             {Math.abs(gapScale - 1) >= 0.001 && (
               <button
                 onClick={handleGapScaleReset}
