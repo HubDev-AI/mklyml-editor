@@ -38,10 +38,12 @@ const htmlHighlightField = StateField.define<DecorationSet>({
 interface HtmlSourceEditorProps {
   value: string;
   onChange: (html: string) => void;
+  readOnly?: boolean;
 }
 
 const themeCompartment = new Compartment();
 const wrapCompartment = new Compartment();
+const readOnlyCompartment = new Compartment();
 
 function findNearestMklyLine(text: string, pos: number): number | null {
   const before = text.slice(0, pos);
@@ -52,7 +54,7 @@ function findNearestMklyLine(text: string, pos: number): number | null {
   return numMatch ? Number(numMatch[1]) : null;
 }
 
-export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
+export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSourceEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -109,6 +111,7 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
           }
         }),
         wrapCompartment.of(EditorView.lineWrapping),
+        readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
         EditorState.tabSize.of(2),
       ],
     });
@@ -143,6 +146,14 @@ export function HtmlSourceEditor({ value, onChange }: HtmlSourceEditorProps) {
       ),
     });
   }, [wordWrap]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)),
+    });
+  }, [readOnly]);
 
   // When the HTML tab becomes visible, force CM6 to remeasure (it was hidden)
   // and scroll to top on first display

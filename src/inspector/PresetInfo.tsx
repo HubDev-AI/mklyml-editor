@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { CompletionData } from '@milkly/mkly';
 import { useEditorStore } from '../store/editor-store';
 
@@ -106,6 +106,7 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
   const source = useEditorStore((s) => s.source);
   const setSource = useEditorStore((s) => s.setSource);
   const availablePresets = completionData.presets;
+  const [showGapHelp, setShowGapHelp] = useState(false);
 
   const implicitPresets = useMemo(() => {
     if (activePresets.length > 0) return [];
@@ -318,59 +319,127 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
 
       {hasActivePreset && (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
           marginTop: 10,
           paddingTop: 8,
           borderTop: '1px solid var(--ed-border)',
         }}>
-          <span style={{
-            fontSize: 10,
-            fontWeight: 600,
-            color: 'var(--ed-text-muted)',
-            flexShrink: 0,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 6,
           }}>
-            Gap
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={1.5}
-            step={0.05}
-            value={gapScale}
-            onChange={(e) => handleGapScaleChange(parseFloat(e.target.value))}
-            style={{ flex: 1, minWidth: 0 }}
-          />
-          <span style={{
-            fontSize: 10,
-            fontFamily: "'JetBrains Mono', monospace",
-            color: 'var(--ed-text-muted)',
-            flexShrink: 0,
-            minWidth: 28,
-            textAlign: 'right',
-          }}>
-            {gapScale.toFixed(1)}x
-          </span>
-          {Math.abs(gapScale - 1) >= 0.001 && (
-            <button
-              onClick={handleGapScaleReset}
-              title="Reset to default (1.0x)"
-              style={{
-                background: 'none',
-                border: 'none',
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
                 color: 'var(--ed-text-muted)',
-                cursor: 'pointer',
-                fontSize: 13,
-                lineHeight: 1,
-                padding: '0 1px',
-                flexShrink: 0,
-              }}
-            >
-              ×
-            </button>
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}>
+                Block Spacing
+              </span>
+              <button
+                onClick={() => setShowGapHelp((v) => !v)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '1px solid var(--ed-border)',
+                  background: showGapHelp ? 'var(--ed-accent)' : 'none',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: showGapHelp ? '#fff' : 'var(--ed-text-muted)',
+                  cursor: 'pointer',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                ?
+              </button>
+            </div>
+          {showGapHelp && (
+            <div style={{
+              fontSize: 10,
+              lineHeight: 1.5,
+              color: 'var(--ed-text-muted)',
+              background: 'var(--ed-surface)',
+              border: '1px solid var(--ed-border)',
+              borderRadius: 6,
+              padding: '8px 10px',
+              marginBottom: 6,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>
+              Controls the vertical space between content blocks.
+              <strong style={{ color: 'var(--ed-text)' }}> 1.0x</strong> is the preset default.
+              Set to <strong style={{ color: 'var(--ed-text)' }}>0</strong> for no gaps,
+              increase for more breathing room.
+            </div>
           )}
+            {Math.abs(gapScale - 1) >= 0.001 && (
+              <button
+                onClick={handleGapScaleReset}
+                title="Reset to default (1.0x)"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--ed-border)',
+                  borderRadius: 4,
+                  color: 'var(--ed-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 9,
+                  lineHeight: 1,
+                  padding: '2px 6px',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  flexShrink: 0,
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--ed-surface)',
+            borderRadius: 6,
+            padding: '6px 10px',
+            border: '1px solid var(--ed-border)',
+          }}>
+            <span style={{
+              fontSize: 9,
+              color: 'var(--ed-text-muted)',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              flexShrink: 0,
+            }}>
+              {gapScale < 0.1 ? 'None' : gapScale < 0.5 ? 'Tight' : gapScale < 0.9 ? 'Compact' : gapScale < 1.1 ? 'Default' : gapScale < 1.5 ? 'Relaxed' : 'Wide'}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.05}
+              value={gapScale}
+              onChange={(e) => handleGapScaleChange(parseFloat(e.target.value))}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <span style={{
+              fontSize: 10,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: 'var(--ed-text)',
+              fontWeight: 600,
+              flexShrink: 0,
+              minWidth: 28,
+              textAlign: 'right',
+            }}>
+              {gapScale.toFixed(1)}x
+            </span>
+          </div>
         </div>
       )}
     </div>

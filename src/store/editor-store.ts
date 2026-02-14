@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ParseError, CompileError, SourceMapEntry } from '@milkly/mkly';
+import type { ParseError, CompileError, SourceMapEntry, StyleGraph } from '@milkly/mkly';
 import { resolveBlockLine } from './selection-orchestrator';
 import type { UndoInfo } from './undo-manager';
 
@@ -59,6 +59,9 @@ interface EditorState {
   // Used by the style editor to show inherited/theme values as placeholders.
   computedStyles: Record<string, string>;
 
+  // StyleGraph from latest compilation — canonical style model for the document
+  styleGraph: StyleGraph | null;
+
   // Independent word wrap toggles per code editor
   mklyWordWrap: boolean;
   htmlWordWrap: boolean;
@@ -90,6 +93,7 @@ interface EditorState {
   setScrollLock: (locked: boolean) => void;
   setSourceMap: (sourceMap: SourceMapEntry[] | null) => void;
   setComputedStyles: (styles: Record<string, string>) => void;
+  setStyleGraph: (graph: StyleGraph | null) => void;
   setMklyWordWrap: (wrap: boolean) => void;
   setHtmlWordWrap: (wrap: boolean) => void;
   setIsNormalized: (normalized: boolean) => void;
@@ -106,28 +110,30 @@ interface EditorState {
   clearHistory: () => void;
 }
 
-const EXAMPLE = `// A sample newsletter — edit this!
-// Kits are activated with --- use
-// Styles use indentation-based syntax (v2)
+const EXAMPLE = `// A sample newsletter -- edit this!
+// Kits are activated with --- use 
+// Themes are collections of colors that can be applied with --- theme
+// Presets are layout templates that can be applied with --- preset
 
 --- use: core
 --- use: newsletter
---- theme: newsletter/midnight-violet
---- preset: core/default
+--- theme: newsletter/neon-pulse
+--- preset: newsletter/neon
+
+--- meta
+version: 1
+title: Weekly Digest
+subject: What happened this week
 
 --- style
 // Try changing these!
 accent: #e2725b
 fontBody: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif
 radius: 8px
+gapScale: 0.65
 
 core/heading
   letterSpacing: -0.5px
-
---- meta
-version: 1
-title: Weekly Digest
-subject: What happened this week
 
 --- core/header
 logo: https://milkly.app/logo.png
@@ -136,14 +142,11 @@ title: The Weekly Digest
 --- core/hero
 image: https://images.unsplash.com/photo-1550547660-d9450f859349?w=1200
 alt: Weekly digest hero
-@borderRadius: 12px
 
 # This Week in Tech
-
 Your curated roundup of what matters.
 
 --- newsletter/intro
-
 Welcome back! Here's everything you need to know this week, from AI breakthroughs to design tools that'll make your workflow smoother.
 
 --- core/section
@@ -152,17 +155,14 @@ title: Features
 --- core/card
 image: https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400
 link: https://example.com/ai
-@.img/margin: 10 auto 0 auto
 
 ## AI-Friendly Markup
-
 mkly generates **55-60% fewer tokens** than HTML. LLMs produce it reliably thanks to its flat, predictable structure.
 
 --- core/card
 link: https://example.com/readable
 
 ## Human-Readable
-
 Looks like a config file. Zero learning curve. Edit content without touching HTML or CSS.
 
 --- /core/section
@@ -177,8 +177,8 @@ link: https://example.com/story-1
 New browser APIs are making the web faster than ever. Here's what developers need to know about the latest performance improvements.
 
 --- newsletter/item
-source: Wired
 image: https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=200
+source: Wired
 link: https://example.com/story-2
 
 The rise of local-first software — why developers are moving away from cloud-only architectures.
@@ -186,7 +186,6 @@ The rise of local-first software — why developers are moving away from cloud-o
 --- /newsletter/category
 
 --- newsletter/quickHits
-
 - **TypeScript 6.0** is out with faster type checking
 - **Bun 1.3** adds native SQLite support
 - **React 20** announced at React Conf
@@ -216,7 +215,6 @@ option3: Design systems in 2026
 image: https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400
 link: https://example.com/sponsor
 label: Try Acme Cloud
-@.img/margin: 0 auto 8px
 
 Acme Cloud gives you **10x faster deployments** with zero config. Used by teams at Stripe, Vercel, and Linear.
 
@@ -227,7 +225,6 @@ buttonText: Subscribe for More
 Enjoyed this issue? Share it with a friend.
 
 --- newsletter/personalNote
-
 Hey! I've been experimenting with mkly for our internal docs too — turns out it works great beyond newsletters. Let me know what you think about this week's picks.
 
 --- newsletter/outro
@@ -237,7 +234,6 @@ ctaText: View Archive
 Thanks for reading! See you next week.
 
 --- core/footer
-
 [Unsubscribe](https://example.com/unsub) | [View in browser](https://example.com/web) | Built with **mkly**
 `;
 
@@ -274,6 +270,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   scrollLock: false,
   sourceMap: null,
   computedStyles: {},
+  styleGraph: null,
   mklyWordWrap: true,
   htmlWordWrap: true,
   isNormalized: false,
@@ -307,6 +304,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setScrollLock: (locked) => set({ scrollLock: locked }),
   setSourceMap: (sourceMap) => set({ sourceMap }),
   setComputedStyles: (styles) => set({ computedStyles: styles }),
+  setStyleGraph: (graph) => set({ styleGraph: graph }),
   setMklyWordWrap: (wrap) => set({ mklyWordWrap: wrap }),
   setHtmlWordWrap: (wrap) => set({ htmlWordWrap: wrap }),
   setIsNormalized: (normalized) => set({ isNormalized: normalized }),

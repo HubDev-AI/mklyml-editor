@@ -75,6 +75,15 @@ export function GlassToolbar() {
       <ToolbarButton onClick={redo} title="Redo (Cmd+Shift+Z)" disabled={!canRedo}>
         <IconRedo />
       </ToolbarButton>
+      <span style={{
+        fontSize: 10,
+        color: 'var(--ed-muted)',
+        opacity: 0.5,
+        whiteSpace: 'nowrap',
+        userSelect: 'none',
+      }}>
+        last 20
+      </span>
 
       <div style={{ flex: 1 }} />
 

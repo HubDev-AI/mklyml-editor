@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { BlockHeader } from './BlockHeader';
 import { PropertyForm } from './PropertyForm';
 import { StyleEditor } from './StyleEditor';
-import { TargetStyleEditor } from './TargetStyleEditor';
 import { BlockDocsPanel } from './BlockDocsPanel';
 import { KitInfoPanel } from './KitInfoPanel';
 import { MetaInspector } from './MetaInspector';
@@ -12,7 +11,7 @@ import { PresetInfo } from './PresetInfo';
 import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
-import { applyPropertyChange } from '../store/block-properties';
+import { applyPropertyChange, applyStyleChange } from '../store/block-properties';
 import type { CursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@milkly/mkly';
 
@@ -26,14 +25,16 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const activeThemes = useDocumentThemes();
   const activePresets = useDocumentPresets();
   const computedStyles = useEditorStore((s) => s.computedStyles);
+  const styleGraph = useEditorStore((s) => s.styleGraph);
+  const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
 
   const focusBlock = useEditorStore((s) => s.focusBlock);
-  const cursorLine = useEditorStore((s) => s.cursorLine);
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
     if (!cursorBlock) return;
 
-    focusBlock(cursorLine, 'inspector', 'edit-property');
+    const currentCursor = useEditorStore.getState().cursorLine;
+    focusBlock(currentCursor, 'inspector', 'edit-property');
 
     const currentSource = useEditorStore.getState().source;
     const { newSource } = applyPropertyChange(
@@ -44,7 +45,30 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       value,
     );
     setSource(newSource);
-  }, [cursorBlock, setSource, focusBlock, cursorLine]);
+  }, [cursorBlock, setSource, focusBlock]);
+
+  const handleStyleChange = useCallback((blockType: string, target: string, prop: string, value: string, label?: string) => {
+    const currentSource = useEditorStore.getState().source;
+    const currentGraph = useEditorStore.getState().styleGraph;
+    const currentCursor = useEditorStore.getState().cursorLine;
+
+    const { newSource, newGraph, lineDelta } = applyStyleChange(
+      currentSource,
+      currentGraph,
+      blockType,
+      target,
+      prop,
+      value,
+      label,
+    );
+
+    // Adjust cursor for line shifts in the style block
+    const adjustedCursor = currentCursor + lineDelta;
+
+    setStyleGraph(newGraph);
+    setSource(newSource);
+    focusBlock(adjustedCursor, 'inspector', 'edit-property');
+  }, [setSource, setStyleGraph, focusBlock]);
 
   if (!cursorBlock) {
     return (
@@ -110,6 +134,8 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   // Regular content block
   const blockDocs = completionData.docs.get(cursorBlock.type);
   const kitName = completionData.blockKits.get(cursorBlock.type);
+  const blockTargets = completionData.targets.get(cursorBlock.type);
+  const blockStyleHints = completionData.styleHints.get(cursorBlock.type);
 
   return (
     <div style={{
@@ -132,17 +158,14 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
         onPropertyChange={handlePropertyChange}
       />
       <StyleEditor
-        properties={cursorBlock.properties}
+        blockType={cursorBlock.type}
+        label={cursorBlock.label}
+        styleGraph={styleGraph}
         computedStyles={computedStyles}
-        onPropertyChange={handlePropertyChange}
+        targets={blockTargets}
+        styleHints={blockStyleHints}
+        onStyleChange={handleStyleChange}
       />
-      {completionData.targets.get(cursorBlock.type) && (
-        <TargetStyleEditor
-          targets={completionData.targets.get(cursorBlock.type)!}
-          properties={cursorBlock.properties}
-          onPropertyChange={handlePropertyChange}
-        />
-      )}
       {blockDocs && (
         <BlockDocsPanel
           blockType={cursorBlock.type}

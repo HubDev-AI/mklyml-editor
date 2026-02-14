@@ -43,8 +43,8 @@ export function parseCursorBlock(source: string, cursorLine: number): CursorBloc
       }
       if (type === 'use' || type === 'meta' || type === 'theme' || type === 'preset') {
         isSpecial = true;
-        blockLabel = match[2]?.trim();
       }
+      blockLabel = match[2]?.trim();
       blockType = type;
       blockStart = i + 1;
       break;

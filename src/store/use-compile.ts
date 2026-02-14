@@ -98,6 +98,7 @@ export function useCompile() {
   const setHtml = useEditorStore((s) => s.setHtml);
   const setErrors = useEditorStore((s) => s.setErrors);
   const setSourceMap = useEditorStore((s) => s.setSourceMap);
+  const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const completionData = useMemo(
@@ -130,6 +131,7 @@ export function useCompile() {
               setHtml(result.html);
               setErrors([...result.errors, ...warnings]);
               setSourceMap(result.sourceMap ?? null);
+              setStyleGraph(result.styleGraph ?? null);
               useEditorStore.getState().setSource(normalized);
               return;
             }
@@ -137,11 +139,13 @@ export function useCompile() {
             setHtml(result.html);
             setErrors([...result.errors, ...warnings]);
             setSourceMap(result.sourceMap ?? null);
+            setStyleGraph(result.styleGraph ?? null);
           } catch {
             // Normalization failed, use original source as-is
             setHtml(result.html);
             setErrors(result.errors);
             setSourceMap(result.sourceMap ?? null);
+            setStyleGraph(result.styleGraph ?? null);
           }
           return;
         }
@@ -154,15 +158,17 @@ export function useCompile() {
             : result.errors,
         );
         setSourceMap(result.sourceMap ?? null);
+        setStyleGraph(result.styleGraph ?? null);
       } catch (e) {
         setHtml(`<html><body style="margin:0;background:#fff;color:#dc2626;font-family:monospace;padding:16px;"><pre style="white-space:pre-wrap;">${escapeHtml(String(e))}</pre></body></html>`);
         setErrors([]);
         setSourceMap(null);
+        setStyleGraph(null);
       }
     }, 150);
 
     return () => clearTimeout(timerRef.current);
-  }, [source, outputMode, setHtml, setErrors, setSourceMap]);
+  }, [source, outputMode, setHtml, setErrors, setSourceMap, setStyleGraph]);
 
   return { completionData };
 }

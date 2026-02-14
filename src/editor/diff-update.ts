@@ -51,8 +51,14 @@ export function applyExternalUpdate(
   clearPendingScroll(view);
   const isVisible = view.dom.offsetParent !== null;
 
+  // Large doc changes (e.g. web↔email output mode switch) make scroll-position
+  // mapping unsafe — scrollSnapshot() captures positions from the old doc range
+  // that can't be mapped through the changeset, causing RangeError.
+  const sizeDelta = Math.abs(currentDoc.length - newValue.length);
+  const isLargeChange = sizeDelta > currentDoc.length * 0.3;
+
   try {
-    if (isVisible) {
+    if (isVisible && !isLargeChange) {
       const scrollEffect = view.scrollSnapshot();
       view.dispatch({ changes: change, effects: scrollEffect });
     } else {

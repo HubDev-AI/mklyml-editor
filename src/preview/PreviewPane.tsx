@@ -12,6 +12,7 @@ import { queryComputedStyles } from './computed-styles';
 export function PreviewPane() {
   const html = useEditorStore((s) => s.html);
   const viewMode = useEditorStore((s) => s.viewMode);
+  const outputMode = useEditorStore((s) => s.outputMode);
   const errors = useEditorStore((s) => s.errors);
   const setSource = useEditorStore((s) => s.setSource);
   const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
@@ -35,7 +36,8 @@ export function PreviewPane() {
   // Write HTML to preview iframe imperatively (preserves scroll position)
   useEffect(() => {
     const iframe = iframeRef.current;
-    if (!iframe || !html || viewMode !== 'preview') return;
+    const showIframe = viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email');
+    if (!iframe || !html || !showIframe) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
     setScrollLock(true);
@@ -73,18 +75,19 @@ export function PreviewPane() {
       requestAnimationFrame(() => setScrollLock(false));
     }
     setTimeout(() => setScrollLock(false), 100);
-  }, [html, viewMode, setScrollLock, theme]);
+  }, [html, viewMode, outputMode, setScrollLock, theme]);
 
   // Highlight active block in preview iframe (same logic as edit pane)
   useEffect(() => {
-    if (viewMode !== 'preview') return;
+    const iframeVisible = viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email');
+    if (!iframeVisible) return;
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock);
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, setComputedStyles]);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);
@@ -116,6 +119,19 @@ export function PreviewPane() {
       flex: 1,
       overflow: 'hidden',
     }}>
+      {viewMode === 'edit' && outputMode === 'email' && (
+        <div style={{
+          padding: '6px 14px',
+          background: 'var(--ed-info-bg, rgba(59, 130, 246, 0.1))',
+          borderBottom: '1px solid var(--ed-border)',
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: 'var(--ed-info-text, #3b82f6)',
+          flexShrink: 0,
+        }}>
+          Email output is read-only — switch to Web to edit
+        </div>
+      )}
       <iframe
         ref={iframeRef}
         title="Preview"
@@ -123,23 +139,30 @@ export function PreviewPane() {
           flex: 1,
           border: 'none',
           background: 'var(--ed-surface, #fff)',
-          display: viewMode === 'preview' ? 'block' : 'none',
+          display: viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email')
+            ? 'block' : 'none',
         }}
       />
-      {viewMode === 'edit' && <EditablePreview onSyncError={setSyncError} />}
+      {viewMode === 'edit' && outputMode !== 'email' && <EditablePreview onSyncError={setSyncError} />}
       <div style={{ display: viewMode === 'html' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{
           padding: '6px 14px',
-          background: 'var(--ed-warning-bg, rgba(234, 179, 8, 0.1))',
+          background: outputMode === 'email'
+            ? 'var(--ed-info-bg, rgba(59, 130, 246, 0.1))'
+            : 'var(--ed-warning-bg, rgba(234, 179, 8, 0.1))',
           borderBottom: '1px solid var(--ed-border)',
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--ed-warning-text, #ca8a04)',
+          color: outputMode === 'email'
+            ? 'var(--ed-info-text, #3b82f6)'
+            : 'var(--ed-warning-text, #ca8a04)',
           flexShrink: 0,
         }}>
-          Experimental: Direct HTML edits may lose formatting when converted back to mkly
+          {outputMode === 'email'
+            ? 'Email HTML is read-only — switch to Web to edit'
+            : 'Experimental: Direct HTML edits may lose formatting when converted back to mkly'}
         </div>
-        <HtmlSourceEditor value={prettyHtml} onChange={handleHtmlChange} />
+        <HtmlSourceEditor value={prettyHtml} onChange={handleHtmlChange} readOnly={outputMode === 'email'} />
       </div>
       {syncError && (
         <div style={{
