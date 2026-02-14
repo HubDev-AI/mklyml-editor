@@ -112,7 +112,8 @@ const EXAMPLE = `// A sample newsletter — edit this!
 
 --- use: core
 --- use: newsletter
---- theme: core/dark
+--- theme: newsletter/midnight-violet
+--- preset: core/default
 
 --- style
 // Try changing these!
@@ -135,7 +136,6 @@ title: The Weekly Digest
 --- core/hero
 image: https://images.unsplash.com/photo-1550547660-d9450f859349?w=1200
 alt: Weekly digest hero
-@bg: #0e111c
 @borderRadius: 12px
 
 # This Week in Tech
@@ -152,6 +152,7 @@ title: Features
 --- core/card
 image: https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400
 link: https://example.com/ai
+@.img/margin: 10 auto 0 auto
 
 ## AI-Friendly Markup
 

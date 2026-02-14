@@ -2,6 +2,101 @@ import { useCallback, useMemo } from 'react';
 import type { CompletionData } from '@milkly/mkly';
 import { useEditorStore } from '../store/editor-store';
 
+/** Parse the gapScale value from a `--- style` block in mkly source. */
+function parseGapScale(source: string): number {
+  const lines = source.split('\n');
+  let inStyleBlock = false;
+  for (const line of lines) {
+    if (/^---\s+style\b/.test(line)) {
+      inStyleBlock = true;
+      continue;
+    }
+    if (inStyleBlock) {
+      // Style block ends at next `---` directive or blank line
+      if (/^---\s/.test(line) || line.trim() === '') {
+        inStyleBlock = false;
+        continue;
+      }
+      // Match gapScale property (indented or not, skip comments)
+      const m = line.match(/^\s*gapScale:\s*(.+)$/);
+      if (m) {
+        const val = parseFloat(m[1].trim());
+        if (!isNaN(val)) return val;
+      }
+    }
+  }
+  return 1;
+}
+
+/** Update or insert gapScale in the source's `--- style` block. */
+function writeGapScale(source: string, value: number): string {
+  const lines = source.split('\n');
+  const isDefault = Math.abs(value - 1) < 0.001;
+
+  // Find the style block
+  let styleBlockStart = -1;
+  let styleBlockEnd = -1; // index of last property line in the block
+  let gapScaleLine = -1;
+  let blockIndent = '    '; // default to 4-space indent for new properties
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^---\s+style\b/.test(lines[i])) {
+      styleBlockStart = i;
+      // Scan properties
+      for (let j = i + 1; j < lines.length; j++) {
+        const ln = lines[j];
+        if (/^---\s/.test(ln) || ln.trim() === '') {
+          break;
+        }
+        styleBlockEnd = j;
+        // Detect indentation of existing properties
+        const indentMatch = ln.match(/^(\s*)\S/);
+        if (indentMatch) {
+          blockIndent = indentMatch[1];
+        }
+        if (/^\s*gapScale:/.test(ln)) {
+          gapScaleLine = j;
+        }
+      }
+      break;
+    }
+  }
+
+  // Case 1: gapScale line exists
+  if (gapScaleLine !== -1) {
+    if (isDefault) {
+      // Remove the line
+      lines.splice(gapScaleLine, 1);
+    } else {
+      lines[gapScaleLine] = `${blockIndent}gapScale: ${value}`;
+    }
+    return lines.join('\n');
+  }
+
+  // Case 2: style block exists but no gapScale (and not default)
+  if (styleBlockStart !== -1 && !isDefault) {
+    const insertAt = styleBlockEnd !== -1 ? styleBlockEnd + 1 : styleBlockStart + 1;
+    lines.splice(insertAt, 0, `${blockIndent}gapScale: ${value}`);
+    return lines.join('\n');
+  }
+
+  // Case 3: no style block (and not default) — create one
+  if (styleBlockStart === -1 && !isDefault) {
+    // Insert after last preset/theme/use directive
+    let insertIdx = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^---\s+(preset|theme|use):\s/.test(lines[i])) {
+        insertIdx = i + 1;
+      }
+    }
+    lines.splice(insertIdx, 0, `--- style`, `    gapScale: ${value}`, '');
+    return lines.join('\n');
+  }
+
+  // Default value and no existing line — nothing to do
+  return source;
+}
+
 interface PresetInfoProps {
   activePresets: string[];
   completionData: CompletionData;
@@ -27,6 +122,20 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
     }
     return defaults;
   }, [activePresets, source, completionData.kitInfo]);
+
+  const gapScale = useMemo(() => parseGapScale(source), [source]);
+
+  const hasActivePreset = activePresets.length > 0 || implicitPresets.length > 0;
+
+  const handleGapScaleChange = useCallback((value: number) => {
+    const src = useEditorStore.getState().source;
+    setSource(writeGapScale(src, value));
+  }, [setSource]);
+
+  const handleGapScaleReset = useCallback(() => {
+    const src = useEditorStore.getState().source;
+    setSource(writeGapScale(src, 1));
+  }, [setSource]);
 
   const updatePresets = useCallback((newPresets: string[]) => {
     const src = useEditorStore.getState().source;
@@ -204,6 +313,64 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
       ) : (
         <div style={{ color: 'var(--ed-text-muted)', fontStyle: 'italic', fontSize: 11 }}>
           No preset — unstyled
+        </div>
+      )}
+
+      {hasActivePreset && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 10,
+          paddingTop: 8,
+          borderTop: '1px solid var(--ed-border)',
+        }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: 'var(--ed-text-muted)',
+            flexShrink: 0,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}>
+            Gap
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1.5}
+            step={0.05}
+            value={gapScale}
+            onChange={(e) => handleGapScaleChange(parseFloat(e.target.value))}
+            style={{ flex: 1, minWidth: 0 }}
+          />
+          <span style={{
+            fontSize: 10,
+            fontFamily: "'JetBrains Mono', monospace",
+            color: 'var(--ed-text-muted)',
+            flexShrink: 0,
+            minWidth: 28,
+            textAlign: 'right',
+          }}>
+            {gapScale.toFixed(1)}x
+          </span>
+          {Math.abs(gapScale - 1) >= 0.001 && (
+            <button
+              onClick={handleGapScaleReset}
+              title="Reset to default (1.0x)"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--ed-text-muted)',
+                cursor: 'pointer',
+                fontSize: 13,
+                lineHeight: 1,
+                padding: '0 1px',
+                flexShrink: 0,
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
       )}
     </div>
