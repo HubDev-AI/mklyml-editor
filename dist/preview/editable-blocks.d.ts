@@ -1,0 +1,2 @@
+export declare function makeBlocksEditable(doc: Document): void;
+export declare const EDIT_MODE_CSS = "\n[data-mkly-editable]:focus {\n  outline: 2px solid rgba(59, 130, 246, 0.5);\n  outline-offset: 2px;\n  border-radius: 4px;\n}\n[data-mkly-editable]:hover {\n  outline: 1px solid rgba(59, 130, 246, 0.25);\n  outline-offset: 2px;\n  border-radius: 4px;\n}\n[contenteditable=\"false\"] {\n  opacity: 0.7;\n  cursor: default;\n  user-select: none;\n}\n";

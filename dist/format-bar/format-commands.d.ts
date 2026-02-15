@@ -1,0 +1,11 @@
+import { EditorView } from '@codemirror/view';
+type WrapFn = (view: EditorView) => boolean;
+export declare const wrapBold: WrapFn;
+export declare const wrapItalic: WrapFn;
+export declare const wrapCode: WrapFn;
+export declare function insertLink(view: EditorView): boolean;
+export declare function wrapInlineStyle(view: EditorView, styles: Record<string, string>): boolean;
+export declare function setTextColor(view: EditorView, color: string): boolean;
+export declare function setFontSize(view: EditorView, size: string): boolean;
+export declare function setHighlightColor(view: EditorView, color: string): boolean;
+export {};
