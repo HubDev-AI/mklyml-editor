@@ -132,71 +132,6 @@ version: 1
 title: The Cat's Meow Newsletter
 subject: Your Weekly Dose of Feline Fun & Facts
 
---- style
-primary: #4A3728 // Dark brown
-accent: #D4A574 // Golden tan
-body
-  bg: #F7F3EB // Light cream background
-  fg: #333333 // Dark grey for text
-
-newsletter/header
-  bg: $primary
-  fg: white
-  padding: 24px
-
-newsletter/intro
-  padding: 24px 0
-  border-bottom: 1px solid #EEEEEE
-
-newsletter/featured
-  .image
-    rounded: 8px
-  .source
-    fg: $accent
-    font-weight: bold
-  padding: 32px 0
-
-newsletter/category
-  padding: 32px 0
-  .heading
-    fg: $primary
-    border-bottom: 2px solid $accent
-    padding-bottom: 8px
-    margin-bottom: 24px
-
-newsletter/item
-  .image
-    rounded: 4px
-  .source
-    fg: $accent
-    font-size: 0.9em
-  margin-bottom: 24px
-
-newsletter/quickHits
-  padding: 24px
-  rounded: 8px
-  .heading
-    fg: $primary
-
-newsletter/outro
-  padding: 32px
-  rounded: 8px
-  .cta
-    bg: $accent
-    fg: white
-    rounded: 5px
-    padding: 12px 24px
-    text-decoration: none
-    display: inline-block
-    :hover
-      bg: darken($accent, 10%)
-
-core/footer
-  bg: $primary
-  fg: white
-  padding: 24px
-  text-align: center
-
 --- core/header
 title: logo:
 title: The Cat's Meow Newsletter
@@ -231,14 +166,6 @@ link: https://cheezburger.com/44307973/31-feisty-photos-of-spicy-cats-proving-th
 
 ### 31 Feisty Photos of Spicy Cats Proving Their Cuddles Are Conditional at Best
 Out of all the creatures we let live in our house, cats are the best at saying "no." Dogs always want your love and affection. If they had it their way, they would be glued to your side 24 hours a day, 7 days a week. Cats? Not so much. Dive into this hilarious collection of cats setting their boundaries.
-
---- newsletter/item
-image: https://www.sciencedaily.com/images/1920/caenoplana-variegata.webp
-source: science-daily
-link: https://www.sciencedaily.com/releases/2026/02/260210231550.htm
-
-### Scientists discover pets are helping an invasive flatworm spread
-A new study shows that dogs and cats may be helping an invasive flatworm spread. Researchers analyzing over a decade of reports discovered the worm attached to pet fur. Its sticky mucus and ability to survive in various environments make it a formidable invader. Learn more about this surprising discovery.
 
 --- newsletter/item
 image: https://i.chzbgr.com/original/44303109/h70F56A3A/out-hes-been-waiting-for-me-to-go-to-sleep-then-licking-the-tip-of-the-olive-oil-bottle-all-night
