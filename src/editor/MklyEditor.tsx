@@ -12,6 +12,7 @@ import { wrapBold, wrapItalic, wrapCode, insertLink } from '../format-bar/format
 import { FormatBar } from '../format-bar/FormatBar';
 import { useEditorStore } from '../store/editor-store';
 import { blockColorPlugin } from './block-color-plugin';
+import { blockDeletePlugin } from './block-delete-plugin';
 import { applyExternalUpdate } from './diff-update';
 import { clearPendingScroll } from './safe-dispatch';
 import { shouldScrollToBlock } from '../store/selection-orchestrator';
@@ -134,6 +135,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
         highlightField,
         dropLineField,
         blockColorPlugin(completionData),
+        blockDeletePlugin(),
         mklyLinter(),
         keymap.of([
           { key: 'Mod-b', run: wrapBold },
@@ -321,14 +323,31 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     if (!currentView) return;
     const adjustedPos = Math.min(pos + usePrefix.length, currentView.state.doc.length);
     const line = currentView.state.doc.lineAt(adjustedPos);
-    const insertText = `\n--- ${blockName}\n`;
+
+    // Build insert text with required properties scaffolded
+    const blockDocs = completionData.docs.get(blockName);
+    const requiredProps = blockDocs?.properties?.filter((p) => p.required) ?? [];
+    const propLines = requiredProps.map((p) => `${p.name}: `).join('\n');
+    const insertText = `\n--- ${blockName}\n${propLines}${propLines ? '\n' : ''}`;
     currentView.dispatch({
       changes: { from: line.to, insert: insertText },
     });
 
+    // Place cursor at the first required property value (after ": ")
     requestAnimationFrame(() => {
       const newView = viewRef.current;
       if (!newView) return;
+      if (requiredProps.length > 0) {
+        // Cursor goes after "propName: " on the first required prop line
+        const propLineNum = line.number + 2; // +1 for header, +1 for first prop
+        if (propLineNum <= newView.state.doc.lines) {
+          const propLine = newView.state.doc.line(propLineNum);
+          newView.dispatch({
+            selection: { anchor: propLine.to },
+          });
+          newView.focus();
+        }
+      }
       const newLineNum = Math.min(line.number + 1, newView.state.doc.lines);
       useEditorStore.getState().focusBlock(newLineNum, 'block-dock');
     });
