@@ -28,13 +28,15 @@ export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
     }
   }
 
-  // No BEM class found — return "self" for the direct wrapper child,
-  // or the tag name for deeper elements (gives context in the popup header)
+  // No BEM class found — return "self" for generic wrapper elements,
+  // or ">tag" for specific elements (descendant tag selector).
+  // The ">" prefix tells the style graph to emit a descendant CSS selector
+  // (e.g. ".mkly-block p") instead of a BEM selector (".mkly-block__p").
   const tag = clickedEl.tagName.toLowerCase();
   if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main') {
     return 'self';
   }
-  return tag;
+  return `>${tag}`;
 }
 
 /**

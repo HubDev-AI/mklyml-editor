@@ -62,8 +62,10 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
       ? TARGET_SECTORS
       : DEFAULT_SELF_SECTORS;
 
-  // Filter sectors by styleHints (if provided)
-  const allowedProps = styleHints?.[activeTab] ?? styleHints?.['self'];
+  // Filter sectors by styleHints (if provided).
+  // Tag targets (">p", ">h1") skip filtering — they're ad-hoc and need all properties.
+  const isTagTarget = activeTab.startsWith('>');
+  const allowedProps = isTagTarget ? undefined : (styleHints?.[activeTab] ?? styleHints?.['self']);
   const sectors = allowedProps
     ? filterSectors(rawSectors, allowedProps)
     : rawSectors;
@@ -109,6 +111,16 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
                 />
               );
             })}
+            {/* Dynamic tab for tag descendant targets (">p", ">h1", etc.) */}
+            {initialTab?.startsWith('>') && (
+              <TabButton
+                label={`<${initialTab.slice(1)}>`}
+                value={initialTab}
+                active={activeTab}
+                onClick={setActiveTab}
+                title={`Style all <${initialTab.slice(1)}> elements in this block`}
+              />
+            )}
             {hasAnyTargetStyles && activeTab === 'self' && (
               <span style={{ fontSize: 9, background: 'var(--ed-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', marginLeft: 'auto', alignSelf: 'center' }}>
                 sub-elements active

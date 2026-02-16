@@ -78,20 +78,32 @@ export function bindStylePickHover(doc: Document): () => void {
 
   const over = (e: MouseEvent) => {
     const target = e.target as Element;
-    const block = target.closest('[data-mkly-line]');
+    const block = target.closest('[data-mkly-id]');
     if (!block) return;
 
-    // Determine the closest meaningful sub-element or the block itself
+    // Determine what to highlight — mirrors detectTarget() logic:
+    // 1. BEM sub-element (walk up from target to block looking for __class)
+    // 2. The target element itself if it's a meaningful tag (not div/section/etc.)
+    // 3. The block root otherwise
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
     let hoverEl: Element = block;
+    let foundBEM = false;
     if (baseClass) {
       let el: Element | null = target;
       while (el && el !== block) {
         if ([...el.classList].some(c => c.startsWith(baseClass + '__'))) {
           hoverEl = el;
+          foundBEM = true;
           break;
         }
         el = el.parentElement;
+      }
+    }
+    // For non-BEM elements, highlight the actual element if it's a meaningful tag
+    if (!foundBEM && target !== block) {
+      const tag = target.tagName.toLowerCase();
+      if (tag !== 'div' && tag !== 'section' && tag !== 'article' && tag !== 'main') {
+        hoverEl = target;
       }
     }
 

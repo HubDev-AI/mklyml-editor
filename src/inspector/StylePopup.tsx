@@ -25,6 +25,9 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
+  // Drag state
+  const dragRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number } | null>(null);
+
   // Compute position when popup changes
   useEffect(() => {
     if (!popup) return;
@@ -41,6 +44,40 @@ export function StylePopup({ completionData }: StylePopupProps) {
 
     setPos({ left, top });
   }, [popup]);
+
+  // Drag handlers — allow moving the popup by dragging the header
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setPos({
+        left: Math.max(0, Math.min(dragRef.current.startLeft + dx, window.innerWidth - POPUP_WIDTH)),
+        top: Math.max(0, Math.min(dragRef.current.startTop + dy, window.innerHeight - 100)),
+      });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    // Don't start drag if clicking the close button
+    if ((e.target as HTMLElement).closest('button')) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: pos.left,
+      startTop: pos.top,
+    };
+    e.preventDefault();
+  }, [pos.left, pos.top]);
 
   // Dismiss on click outside
   useEffect(() => {
@@ -97,16 +134,21 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const blockTargets = completionData.targets.get(popup.blockType);
   const blockStyleHints = completionData.styleHints.get(popup.blockType);
 
-  // For known BEM targets, use the label from target definitions.
-  // For tag-name targets (from elements without BEM classes), show as <tag>.
-  const isKnownTarget = popup.target === 'self' || popup.target === 'self:hover' || !!blockTargets?.[popup.target];
+  // Tag targets (">p", ">h1") are descendant selectors — always valid targets.
+  const isTagTarget = popup.target.startsWith('>');
+  const isKnownTarget = popup.target === 'self' || popup.target === 'self:hover'
+    || !!blockTargets?.[popup.target] || isTagTarget;
+
+  // Display label: BEM targets use their definition label, tag targets show as <tag>
   const targetLabel = popup.target === 'self'
     ? 'Self'
-    : blockTargets?.[popup.target]?.label
-      ?? `<${popup.target}>`;
+    : isTagTarget
+      ? `<${popup.target.slice(1)}>`
+      : blockTargets?.[popup.target]?.label
+        ?? popup.target;
 
-  // For unknown targets (tag names), use the "self" tab to show all properties.
-  // The user sees the element name in the header for context.
+  // Tag targets get their own tab (treated as sub-element targets).
+  // Unknown non-tag targets fall back to "self".
   const effectiveTab = isKnownTarget ? popup.target : 'self';
 
   return createPortal(
@@ -128,14 +170,19 @@ export function StylePopup({ completionData }: StylePopupProps) {
           fontFamily: "'Plus Jakarta Sans', sans-serif",
         }}
       >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--ed-border)',
-        }}>
+        {/* Header — draggable */}
+        <div
+          onMouseDown={onHeaderMouseDown}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderBottom: '1px solid var(--ed-border)',
+            cursor: 'grab',
+            userSelect: 'none',
+          }}
+        >
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ed-text)' }}>
             {displayName}
             {popup.label && <span style={{ fontWeight: 400, color: 'var(--ed-text-muted)' }}> : {popup.label}</span>}
