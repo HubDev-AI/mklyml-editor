@@ -1,6 +1,7 @@
 import { useEditorStore } from '../store/editor-store';
 import { useTheme } from '../theme/use-theme';
 import { IconPlus, IconSun, IconMoon, IconWordWrap, IconUndo, IconRedo } from '../icons';
+import { StylePickToggle } from '../inspector/StylePickToggle';
 
 export function GlassToolbar() {
   const outputMode = useEditorStore((s) => s.outputMode);
@@ -84,6 +85,11 @@ export function GlassToolbar() {
       }}>
         last 20
       </span>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Style picker — centered feature button */}
+      <StylePickToggle />
 
       <div style={{ flex: 1 }} />
 
