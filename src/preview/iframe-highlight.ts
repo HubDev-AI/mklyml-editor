@@ -126,15 +126,16 @@ export function bindStylePickHover(doc: Document): () => void {
  */
 export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): () => void {
   const handler = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
     const target = e.target as Element;
     const block = target.closest<HTMLElement>('[data-mkly-line]');
     if (!block) return;
 
     const blockType = extractBlockType(block);
     if (!blockType) return;
+
+    // Only prevent default/propagation after confirming we have a valid block
+    e.preventDefault();
+    e.stopPropagation();
 
     const detectedTarget = detectTarget(target, block);
 

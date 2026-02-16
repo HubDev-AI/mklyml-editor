@@ -30,6 +30,8 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const lastHtmlRef = useRef('');
   const handleInputRef = useRef<() => void>(() => {});
   const syncRef = useRef(new SyncEngine());
+  const stylePickModeRef = useRef(stylePickMode);
+  stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
     const sync = syncRef.current;
@@ -50,8 +52,19 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
+    const isStylePick = stylePickModeRef.current;
+
     const finalize = () => {
-      makeBlocksEditable(doc);
+      if (isStylePick) {
+        // Style pick mode: disable editing, bind pick handlers
+        setStylePickClass(doc, true);
+        doc.querySelectorAll('[contenteditable]').forEach(el =>
+          el.setAttribute('contenteditable', 'false'));
+        bindStylePickHover(doc);
+        bindStylePickClick(doc, iframe);
+      } else {
+        makeBlocksEditable(doc);
+      }
       setScrollLock(false);
     };
 
@@ -199,7 +212,9 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     }
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
 
-  // Style pick mode: toggle hover/click handlers and contenteditable
+  // Style pick mode: handle toggle (when no iframe rewrite occurred).
+  // After iframe rewrites, writeToIframe handles binding via ref.
+  // This effect handles the case where stylePickMode changes without html changing.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -209,7 +224,6 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     setStylePickClass(doc, stylePickMode);
 
     if (stylePickMode) {
-      // Disable contenteditable on all blocks
       doc.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'false'));
       const cleanupHover = bindStylePickHover(doc);
       const cleanupClick = bindStylePickClick(doc, iframe);
@@ -218,11 +232,11 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
         cleanupClick();
         if (doc.body) {
           setStylePickClass(doc, false);
-          // Re-enable contenteditable
-          doc.querySelectorAll('[contenteditable="false"]').forEach(el => el.setAttribute('contenteditable', 'true'));
+          makeBlocksEditable(doc);
         }
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stylePickMode]);
 
   return (

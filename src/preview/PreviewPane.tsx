@@ -28,6 +28,8 @@ export function PreviewPane() {
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const stylePickModeRef = useRef(stylePickMode);
+  stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
     const sync = syncRef.current;
@@ -66,6 +68,13 @@ export function PreviewPane() {
     });
 
     bindBlockClicks(doc, 'preview');
+
+    // Re-bind style pick handlers after iframe rewrite (if mode is active)
+    if (stylePickModeRef.current) {
+      setStylePickClass(doc, true);
+      bindStylePickHover(doc);
+      bindStylePickClick(doc, iframe);
+    }
 
     if (anchor) {
       requestAnimationFrame(() => {
