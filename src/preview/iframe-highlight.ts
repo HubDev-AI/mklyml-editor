@@ -127,7 +127,10 @@ export function bindStylePickHover(doc: Document): () => void {
 export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): () => void {
   const handler = (e: MouseEvent) => {
     const target = e.target as Element;
-    const block = target.closest<HTMLElement>('[data-mkly-line]');
+    // Use data-mkly-id to find the block root — sub-elements have data-mkly-line
+    // but only block roots have data-mkly-id, so closest('[data-mkly-line]') would
+    // match a sub-element like <img data-mkly-line="162"> and miss the block root.
+    const block = target.closest<HTMLElement>('[data-mkly-id]');
     if (!block) return;
 
     const blockType = extractBlockType(block);

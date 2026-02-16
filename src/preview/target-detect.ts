@@ -3,7 +3,9 @@
  * Walks up from the clicked element to the block root looking for `__target` classes.
  */
 export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
-  const baseClass = [...blockRootEl.classList].find(c => c.startsWith('mkly-'));
+  const baseClass = [...blockRootEl.classList].find(c =>
+    c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'),
+  );
   if (!baseClass) return 'self';
 
   let el: Element | null = clickedEl;
