@@ -64,7 +64,7 @@ export default defineConfig({
         'zustand',
       ],
       output: {
-        banner: '/*! MklyML Editor - Proprietary and Confidential. All Rights Reserved. */',
+        banner: '/*! MklyML Editor - Copyright 2025 MklyML. Apache-2.0 License. */',
         assetFileNames: 'style[extname]',
       },
     },

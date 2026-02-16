@@ -2,7 +2,7 @@
   "name": "@mklyml/editor",
   "version": "0.1.2",
   "description": "Visual editor for MklyML markup language",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,7 +15,7 @@
   },
   "files": ["dist"],
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "scripts": {
     "dev": "bunx --bun vite",
