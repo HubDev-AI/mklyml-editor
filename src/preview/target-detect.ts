@@ -1,24 +1,40 @@
 /**
- * Detect the BEM target name from a clicked element within a block.
- * Walks up from the clicked element to the block root looking for `__target` classes.
+ * Detect the target name from a clicked element within a block.
+ *
+ * Priority:
+ * 1. BEM `__target` class (e.g., mkly-core-card__img → "img")
+ * 2. If clicked element IS the block root → "self"
+ * 3. Tag-name fallback for elements without BEM classes (e.g., <p> → "p")
+ *    This covers arbitrary content inside core/html and similar blocks.
  */
 export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
+  if (clickedEl === blockRootEl) return 'self';
+
   const baseClass = [...blockRootEl.classList].find(c =>
     c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'),
   );
-  if (!baseClass) return 'self';
 
-  let el: Element | null = clickedEl;
-  while (el && el !== blockRootEl) {
-    const targetClass = [...el.classList].find(c =>
-      c.startsWith(baseClass + '__'),
-    );
-    if (targetClass) {
-      return targetClass.slice(baseClass.length + 2); // after "__"
+  // Walk from clicked element up to block root, looking for BEM __target
+  if (baseClass) {
+    let el: Element | null = clickedEl;
+    while (el && el !== blockRootEl) {
+      const targetClass = [...el.classList].find(c =>
+        c.startsWith(baseClass + '__'),
+      );
+      if (targetClass) {
+        return targetClass.slice(baseClass.length + 2); // after "__"
+      }
+      el = el.parentElement;
     }
-    el = el.parentElement;
   }
-  return 'self';
+
+  // No BEM class found — return "self" for the direct wrapper child,
+  // or the tag name for deeper elements (gives context in the popup header)
+  const tag = clickedEl.tagName.toLowerCase();
+  if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main') {
+    return 'self';
+  }
+  return tag;
 }
 
 /**

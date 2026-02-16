@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StyleEditor } from './StyleEditor';
+import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
 import { getBlockDisplayName } from '@mklyml/core';
@@ -49,7 +50,6 @@ export function StylePopup({ completionData }: StylePopupProps) {
         closeStylePopup();
       }
     };
-    // Delay to avoid the opening click from immediately closing
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handler);
     }, 50);
@@ -96,71 +96,82 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const displayName = getBlockDisplayName(popup.blockType, blockDocs);
   const blockTargets = completionData.targets.get(popup.blockType);
   const blockStyleHints = completionData.styleHints.get(popup.blockType);
+
+  // For known BEM targets, use the label from target definitions.
+  // For tag-name targets (from elements without BEM classes), show as <tag>.
+  const isKnownTarget = popup.target === 'self' || popup.target === 'self:hover' || !!blockTargets?.[popup.target];
   const targetLabel = popup.target === 'self'
     ? 'Self'
-    : blockTargets?.[popup.target]?.label ?? popup.target;
+    : blockTargets?.[popup.target]?.label
+      ?? `<${popup.target}>`;
+
+  // For unknown targets (tag names), use the "self" tab to show all properties.
+  // The user sees the element name in the header for context.
+  const effectiveTab = isKnownTarget ? popup.target : 'self';
 
   return createPortal(
-    <div
-      ref={ref}
-      className="liquid-glass-overlay animate-cream-rise"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      style={{
-        position: 'fixed',
-        left: pos.left,
-        top: pos.top,
-        width: POPUP_WIDTH,
-        maxHeight: POPUP_MAX_HEIGHT,
-        overflowY: 'auto',
-        zIndex: 9998,
-        borderRadius: 12,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-      }}
-    >
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--ed-border)',
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ed-text)' }}>
-          {displayName}
-          {popup.label && <span style={{ fontWeight: 400, color: 'var(--ed-text-muted)' }}> : {popup.label}</span>}
-          <span style={{ color: 'var(--ed-text-muted)', fontWeight: 400 }}> &rsaquo; {targetLabel}</span>
-        </span>
-        <button
-          onClick={closeStylePopup}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--ed-text-muted)',
-            cursor: 'pointer',
-            padding: '0 2px',
-            fontSize: 16,
-            lineHeight: 1,
-          }}
-          title="Close"
-        >
-          &times;
-        </button>
-      </div>
+    <EditorErrorBoundary name="Style popup">
+      <div
+        ref={ref}
+        className="liquid-glass-overlay animate-cream-rise"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: 'fixed',
+          left: pos.left,
+          top: pos.top,
+          width: POPUP_WIDTH,
+          maxHeight: POPUP_MAX_HEIGHT,
+          overflowY: 'auto',
+          zIndex: 9998,
+          borderRadius: 12,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          borderBottom: '1px solid var(--ed-border)',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ed-text)' }}>
+            {displayName}
+            {popup.label && <span style={{ fontWeight: 400, color: 'var(--ed-text-muted)' }}> : {popup.label}</span>}
+            <span style={{ color: 'var(--ed-text-muted)', fontWeight: 400 }}> &rsaquo; {targetLabel}</span>
+          </span>
+          <button
+            onClick={closeStylePopup}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--ed-text-muted)',
+              cursor: 'pointer',
+              padding: '0 2px',
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+            title="Close"
+          >
+            &times;
+          </button>
+        </div>
 
-      {/* StyleEditor */}
-      <StyleEditor
-        blockType={popup.blockType}
-        label={popup.label}
-        styleGraph={styleGraph}
-        computedStyles={computedStyles}
-        targets={blockTargets}
-        styleHints={blockStyleHints}
-        onStyleChange={handleStyleChange}
-        initialTab={popup.target}
-        defaultExpanded
-      />
-    </div>,
+        {/* StyleEditor */}
+        <StyleEditor
+          blockType={popup.blockType}
+          label={popup.label}
+          styleGraph={styleGraph}
+          computedStyles={computedStyles}
+          targets={blockTargets}
+          styleHints={blockStyleHints}
+          onStyleChange={handleStyleChange}
+          initialTab={effectiveTab}
+          defaultExpanded
+        />
+      </div>
+    </EditorErrorBoundary>,
     document.body,
   );
 }

@@ -126,45 +126,35 @@ export function bindStylePickHover(doc: Document): () => void {
  */
 export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): () => void {
   const handler = (e: MouseEvent) => {
-    const target = e.target as Element;
-    // Use data-mkly-id to find the block root — sub-elements have data-mkly-line
-    // but only block roots have data-mkly-id, so closest('[data-mkly-line]') would
-    // match a sub-element like <img data-mkly-line="162"> and miss the block root.
-    const block = target.closest<HTMLElement>('[data-mkly-id]');
+    const clicked = e.target as Element;
+
+    // Find block root via data-mkly-id (only block roots have this attribute).
+    // Sub-elements may have data-mkly-line but not data-mkly-id.
+    const block = clicked.closest<HTMLElement>('[data-mkly-id]');
     if (!block) return;
 
     const blockType = extractBlockType(block);
     if (!blockType) return;
 
-    // Only prevent default/propagation after confirming we have a valid block
     e.preventDefault();
     e.stopPropagation();
 
-    const detectedTarget = detectTarget(target, block);
+    // Detect which sub-element target was clicked (BEM __target class).
+    // For elements without BEM classes (e.g. <p> inside core/html),
+    // detectTarget returns the tag name as a fallback.
+    const detectedTarget = detectTarget(clicked, block);
 
-    // Get the label from the block's BEM modifier class (e.g., mkly-core-card--hero)
+    // Label from BEM modifier class (e.g., mkly-core-card--hero → "hero")
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
     let label: string | undefined;
     if (baseClass) {
       const modClass = [...block.classList].find(c => c.startsWith(baseClass + '--'));
-      if (modClass) {
-        label = modClass.slice(baseClass.length + 2);
-      }
+      if (modClass) label = modClass.slice(baseClass.length + 2);
     }
 
-    // Convert iframe-relative coords to viewport coords
-    const clickedEl = detectedTarget === 'self' ? block : (
-      (() => {
-        let el: Element | null = target;
-        while (el && el !== block) {
-          if (baseClass && [...el.classList].some(c => c.startsWith(baseClass + '__'))) return el;
-          el = el.parentElement;
-        }
-        return block;
-      })()
-    );
-
-    const elRect = clickedEl.getBoundingClientRect();
+    // Always position popup at the actual clicked element, not the block root.
+    // This gives the user clear visual association with what they clicked.
+    const elRect = clicked.getBoundingClientRect();
     const iframeRect = iframeEl.getBoundingClientRect();
     const anchorRect = {
       x: elRect.x + iframeRect.x,
@@ -173,7 +163,6 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
       height: elRect.height,
     };
 
-    // Also focus the block in the editor
     const line = Number(block.dataset.mklyLine);
     const store = useEditorStore.getState();
     store.focusBlock(line, 'preview');
