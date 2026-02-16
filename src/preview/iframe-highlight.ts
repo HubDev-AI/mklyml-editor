@@ -1,7 +1,7 @@
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import type { FocusOrigin, FocusIntent } from '../store/editor-store';
 import { useEditorStore } from '../store/editor-store';
-import { detectTarget, extractBlockType } from './target-detect';
+import { detectTarget, extractBlockType, generateStyleClass, injectClassAnnotation, findSourceLine } from './target-detect';
 
 export const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
 
@@ -78,20 +78,32 @@ export function bindStylePickHover(doc: Document): () => void {
 
   const over = (e: MouseEvent) => {
     const target = e.target as Element;
-    const block = target.closest('[data-mkly-line]');
+    const block = target.closest('[data-mkly-id]');
     if (!block) return;
 
-    // Determine the closest meaningful sub-element or the block itself
+    // Determine what to highlight — mirrors detectTarget() logic:
+    // 1. BEM sub-element (walk up from target to block looking for __class)
+    // 2. The target element itself if it's a meaningful tag (not div/section/etc.)
+    // 3. The block root otherwise
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
     let hoverEl: Element = block;
+    let foundBEM = false;
     if (baseClass) {
       let el: Element | null = target;
       while (el && el !== block) {
         if ([...el.classList].some(c => c.startsWith(baseClass + '__'))) {
           hoverEl = el;
+          foundBEM = true;
           break;
         }
         el = el.parentElement;
+      }
+    }
+    // For non-BEM elements, highlight the actual element if it's a meaningful tag
+    if (!foundBEM && target !== block) {
+      const tag = target.tagName.toLowerCase();
+      if (tag !== 'div' && tag !== 'section' && tag !== 'article' && tag !== 'main') {
+        hoverEl = target;
       }
     }
 
@@ -126,42 +138,53 @@ export function bindStylePickHover(doc: Document): () => void {
  */
 export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): () => void {
   const handler = (e: MouseEvent) => {
-    const target = e.target as Element;
-    const block = target.closest<HTMLElement>('[data-mkly-line]');
+    const clicked = e.target as Element;
+
+    // Find block root via data-mkly-id (only block roots have this attribute).
+    // Sub-elements may have data-mkly-line but not data-mkly-id.
+    const block = clicked.closest<HTMLElement>('[data-mkly-id]');
     if (!block) return;
 
     const blockType = extractBlockType(block);
     if (!blockType) return;
 
-    // Only prevent default/propagation after confirming we have a valid block
     e.preventDefault();
     e.stopPropagation();
 
-    const detectedTarget = detectTarget(target, block);
+    // Detect which sub-element target was clicked (BEM __target class).
+    // For elements without BEM classes (e.g. <p> inside core/html),
+    // detectTarget returns the tag name as a fallback.
+    let target = detectTarget(clicked, block);
 
-    // Get the label from the block's BEM modifier class (e.g., mkly-core-card--hero)
+    // If target is a plain tag (">p", ">h2") — inject a unique class into
+    // the source so the style is stable across content reordering.
+    if (/^>[a-z]/.test(target)) {
+      // Walk up from clicked element to find data-mkly-line (it may be on a parent)
+      const sourceLine = findSourceLine(clicked, block);
+      if (sourceLine) {
+        const store = useEditorStore.getState();
+        const className = generateStyleClass(store.source);
+        const newSource = injectClassAnnotation(store.source, sourceLine.lineNum, className);
+        if (newSource) {
+          store.setSource(newSource);
+          // Add class to the element that has data-mkly-line (the actual content element)
+          sourceLine.el.classList.add(className);
+          target = `>.${className}`;
+        }
+      }
+    }
+
+    // Label from BEM modifier class (e.g., mkly-core-card--hero → "hero")
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
     let label: string | undefined;
     if (baseClass) {
       const modClass = [...block.classList].find(c => c.startsWith(baseClass + '--'));
-      if (modClass) {
-        label = modClass.slice(baseClass.length + 2);
-      }
+      if (modClass) label = modClass.slice(baseClass.length + 2);
     }
 
-    // Convert iframe-relative coords to viewport coords
-    const clickedEl = detectedTarget === 'self' ? block : (
-      (() => {
-        let el: Element | null = target;
-        while (el && el !== block) {
-          if (baseClass && [...el.classList].some(c => c.startsWith(baseClass + '__'))) return el;
-          el = el.parentElement;
-        }
-        return block;
-      })()
-    );
-
-    const elRect = clickedEl.getBoundingClientRect();
+    // Always position popup at the actual clicked element, not the block root.
+    // This gives the user clear visual association with what they clicked.
+    const elRect = clicked.getBoundingClientRect();
     const iframeRect = iframeEl.getBoundingClientRect();
     const anchorRect = {
       x: elRect.x + iframeRect.x,
@@ -170,11 +193,10 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
       height: elRect.height,
     };
 
-    // Also focus the block in the editor
     const line = Number(block.dataset.mklyLine);
     const store = useEditorStore.getState();
     store.focusBlock(line, 'preview');
-    store.openStylePopup({ blockType, target: detectedTarget, label, anchorRect });
+    store.openStylePopup({ blockType, target, label, anchorRect });
   };
 
   doc.addEventListener('mousedown', handler, true);

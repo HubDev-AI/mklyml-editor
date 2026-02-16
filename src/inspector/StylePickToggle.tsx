@@ -1,5 +1,9 @@
 import { useEditorStore } from '../store/editor-store';
 
+/**
+ * Style pick mode toggle — prominent button with icon + label.
+ * Designed to sit in the GlassToolbar between the left and right groups.
+ */
 export function StylePickToggle() {
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
   const setStylePickMode = useEditorStore((s) => s.setStylePickMode);
@@ -7,40 +11,44 @@ export function StylePickToggle() {
   return (
     <button
       onClick={() => setStylePickMode(!stylePickMode)}
-      title={stylePickMode ? 'Exit style picker (click elements to style)' : 'Pick element to style'}
+      title={stylePickMode ? 'Exit style picker' : 'Click any element to style it'}
       style={{
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        zIndex: 10,
         display: 'inline-flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        width: 32,
-        height: 32,
-        border: stylePickMode ? '1px solid var(--ed-accent)' : '1px solid var(--ed-border)',
-        borderRadius: 8,
+        gap: 6,
+        padding: '5px 14px 5px 10px',
+        border: 'none',
+        borderRadius: 9999,
         background: stylePickMode
           ? 'var(--ed-accent)'
-          : 'var(--ed-surface-alt, rgba(255,255,255,0.08))',
-        color: stylePickMode ? '#fff' : 'var(--ed-text-muted)',
+          : 'linear-gradient(135deg, rgba(226,114,91,0.12), rgba(226,114,91,0.04))',
+        color: stylePickMode ? '#fff' : 'var(--ed-accent)',
         cursor: 'pointer',
-        backdropFilter: 'blur(8px)',
-        transition: 'all 0.15s ease',
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        letterSpacing: '-0.01em',
+        lineHeight: '18px',
+        transition: 'all 0.2s ease',
         boxShadow: stylePickMode
-          ? '0 0 0 2px rgba(226,114,91,0.3)'
-          : '0 1px 3px rgba(0,0,0,0.1)',
+          ? '0 0 0 2px rgba(226,114,91,0.3), 0 2px 8px rgba(226,114,91,0.25)'
+          : '0 0 0 1px rgba(226,114,91,0.2)',
+        whiteSpace: 'nowrap',
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <circle cx="12" cy="12" r="6" />
-        <circle cx="12" cy="12" r="2" />
-        <line x1="12" y1="2" x2="12" y2="6" />
-        <line x1="12" y1="18" x2="12" y2="22" />
-        <line x1="2" y1="12" x2="6" y2="12" />
-        <line x1="18" y1="12" x2="22" y2="12" />
+      {/* Wand / magic icon */}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 4V2" />
+        <path d="M15 16v-2" />
+        <path d="M8 9h2" />
+        <path d="M20 9h2" />
+        <path d="M17.8 11.8 19 13" />
+        <path d="M15 9h.01" />
+        <path d="M17.8 6.2 19 5" />
+        <path d="m3 21 9-9" />
+        <path d="M12.2 6.2 11 5" />
       </svg>
+      {stylePickMode ? 'Styling...' : 'Style'}
     </button>
   );
 }

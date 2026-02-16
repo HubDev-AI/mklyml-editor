@@ -4,10 +4,10 @@ import { HtmlSourceEditor } from './HtmlSourceEditor';
 import { EditablePreview } from './EditablePreview';
 import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
-import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
+import { morphIframeContent } from './iframe-morph';
 
 export function PreviewPane() {
   const html = useEditorStore((s) => s.html);
@@ -29,6 +29,8 @@ export function PreviewPane() {
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stylePickModeRef = useRef(stylePickMode);
+  const initializedRef = useRef(false);
+  const lastThemeRef = useRef(theme);
   stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
@@ -36,18 +38,34 @@ export function PreviewPane() {
     return () => sync.destroy();
   }, []);
 
-  // Write HTML to preview iframe imperatively (preserves scroll position)
+  // Write HTML to preview iframe — first render does full doc.write,
+  // subsequent updates use DOM morphing to preserve scroll + state.
   useEffect(() => {
     const iframe = iframeRef.current;
     const showIframe = viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email');
     if (!iframe || !html || !showIframe) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
+
+    const themeChanged = theme !== lastThemeRef.current;
+    lastThemeRef.current = theme;
+
+    // Try morph for subsequent renders (same theme)
+    if (initializedRef.current && !themeChanged) {
+      const morphed = morphIframeContent(doc, html);
+      if (morphed) {
+        // Style pick handlers survive morph (they're on the document, not elements)
+        return;
+      }
+    }
+
+    // Full document write: first render, theme change, or morph failed
     setScrollLock(true);
-    const anchor = captureScrollAnchor(doc);
     doc.open();
     doc.write(html);
     doc.close();
+
+    initializedRef.current = true;
 
     // Inject highlight + dark mode styles
     const isDark = useEditorStore.getState().theme === 'dark';
@@ -69,17 +87,11 @@ export function PreviewPane() {
 
     bindBlockClicks(doc, 'preview');
 
-    // Re-bind style pick handlers after iframe rewrite (if mode is active)
+    // Re-bind style pick handlers after full rewrite (if mode is active)
     if (stylePickModeRef.current) {
       setStylePickClass(doc, true);
       bindStylePickHover(doc);
       bindStylePickClick(doc, iframe);
-    }
-
-    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
-    // After doc.close() the DOM is built and layout is computable.
-    if (anchor) {
-      restoreScrollAnchor(doc, anchor);
     }
 
     requestAnimationFrame(() => setScrollLock(false));
