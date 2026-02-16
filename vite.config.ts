@@ -42,7 +42,7 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        banner: '/*! MklyML Editor - Proprietary and Confidential. All Rights Reserved. */',
+        banner: '/*! MklyML Editor - Apache-2.0 License - https://github.com/HubDev-AI/mklyml-editor */',
       },
     },
   },
