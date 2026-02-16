@@ -6,7 +6,7 @@ import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 
 export function PreviewPane() {
@@ -23,10 +23,13 @@ export function PreviewPane() {
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const stylePickModeRef = useRef(stylePickMode);
+  stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
     const sync = syncRef.current;
@@ -48,7 +51,7 @@ export function PreviewPane() {
 
     // Inject highlight + dark mode styles
     const isDark = useEditorStore.getState().theme === 'dark';
-    const extraCss = ACTIVE_BLOCK_CSS + (isDark ? IFRAME_DARK_CSS : '');
+    const extraCss = ACTIVE_BLOCK_CSS + '\n' + STYLE_PICK_CSS + (isDark ? IFRAME_DARK_CSS : '');
     if (extraCss) {
       const style = doc.createElement('style');
       style.textContent = extraCss;
@@ -66,14 +69,20 @@ export function PreviewPane() {
 
     bindBlockClicks(doc, 'preview');
 
-    if (anchor) {
-      requestAnimationFrame(() => {
-        restoreScrollAnchor(doc, anchor);
-        setScrollLock(false);
-      });
-    } else {
-      requestAnimationFrame(() => setScrollLock(false));
+    // Re-bind style pick handlers after iframe rewrite (if mode is active)
+    if (stylePickModeRef.current) {
+      setStylePickClass(doc, true);
+      bindStylePickHover(doc);
+      bindStylePickClick(doc, iframe);
     }
+
+    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
+    // After doc.close() the DOM is built and layout is computable.
+    if (anchor) {
+      restoreScrollAnchor(doc, anchor);
+    }
+
+    requestAnimationFrame(() => setScrollLock(false));
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, outputMode, setScrollLock, theme]);
 
@@ -88,6 +97,25 @@ export function PreviewPane() {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine));
     }
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles]);
+
+  // Style pick mode: toggle hover/click handlers in preview iframe
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc?.body || !iframe) return;
+
+    setStylePickClass(doc, stylePickMode);
+
+    if (stylePickMode) {
+      const cleanupHover = bindStylePickHover(doc);
+      const cleanupClick = bindStylePickClick(doc, iframe);
+      return () => {
+        cleanupHover();
+        cleanupClick();
+        if (doc.body) setStylePickClass(doc, false);
+      };
+    }
+  }, [stylePickMode, html]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);

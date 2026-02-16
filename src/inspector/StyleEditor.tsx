@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ColorPicker } from './style-controls/ColorPicker';
 import { SpacingControl } from './style-controls/SpacingControl';
 import { AlignmentButtons } from './style-controls/AlignmentButtons';
@@ -18,6 +18,8 @@ interface StyleEditorProps {
   targets?: Record<string, TargetInfo>;
   styleHints?: Record<string, string[]>;
   onStyleChange: (blockType: string, target: string, prop: string, value: string, label?: string) => void;
+  initialTab?: string;
+  defaultExpanded?: boolean;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -32,9 +34,13 @@ const inputStyle: React.CSSProperties = {
   fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
 };
 
-export function StyleEditor({ blockType, label, styleGraph, computedStyles, targets, styleHints, onStyleChange }: StyleEditorProps) {
-  const [collapsed, setCollapsed] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>('self');
+export function StyleEditor({ blockType, label, styleGraph, computedStyles, targets, styleHints, onStyleChange, initialTab, defaultExpanded }: StyleEditorProps) {
+  const [collapsed, setCollapsed] = useState(!defaultExpanded);
+  const [activeTab, setActiveTab] = useState<string>(initialTab ?? 'self');
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   const setStyle = useCallback((prop: string, value: string) => {
     onStyleChange(blockType, activeTab, prop, value, label);

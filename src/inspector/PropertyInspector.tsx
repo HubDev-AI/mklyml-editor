@@ -27,7 +27,6 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const computedStyles = useEditorStore((s) => s.computedStyles);
   const styleGraph = useEditorStore((s) => s.styleGraph);
   const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
-
   const focusBlock = useEditorStore((s) => s.focusBlock);
 
   const handlePropertyChange = useCallback((key: string, value: string) => {

@@ -6,7 +6,7 @@ import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 
 interface EditablePreviewProps {
@@ -24,11 +24,14 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
   const lastHtmlRef = useRef('');
   const handleInputRef = useRef<() => void>(() => {});
   const syncRef = useRef(new SyncEngine());
+  const stylePickModeRef = useRef(stylePickMode);
+  stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
     const sync = syncRef.current;
@@ -46,22 +49,30 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     const isDark = useEditorStore.getState().theme === 'dark';
     const darkCss = isDark ? IFRAME_DARK_CSS : '';
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
-    const finalize = () => {
-      makeBlocksEditable(doc);
-      setScrollLock(false);
-    };
-
+    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
+    // After doc.close() the DOM is built and layout is computable.
     if (anchor) {
-      requestAnimationFrame(() => {
-        restoreScrollAnchor(doc, anchor);
-        finalize();
-      });
-    } else {
-      requestAnimationFrame(finalize);
+      restoreScrollAnchor(doc, anchor);
     }
+
+    const isStylePick = stylePickModeRef.current;
+
+    // Finalize in rAF (editable setup, event handlers) — scroll is already correct
+    requestAnimationFrame(() => {
+      if (isStylePick) {
+        setStylePickClass(doc, true);
+        doc.querySelectorAll('[contenteditable]').forEach(el =>
+          el.setAttribute('contenteditable', 'false'));
+        bindStylePickHover(doc);
+        bindStylePickClick(doc, iframe);
+      } else {
+        makeBlocksEditable(doc);
+      }
+      setScrollLock(false);
+    });
     setTimeout(() => setScrollLock(false), 100);
 
     doc.body.addEventListener('input', () => handleInputRef.current());
@@ -197,6 +208,33 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine));
     }
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
+
+  // Style pick mode: handle toggle (when no iframe rewrite occurred).
+  // After iframe rewrites, writeToIframe handles binding via ref.
+  // This effect handles the case where stylePickMode changes without html changing.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument;
+    if (!doc?.body) return;
+
+    setStylePickClass(doc, stylePickMode);
+
+    if (stylePickMode) {
+      doc.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'false'));
+      const cleanupHover = bindStylePickHover(doc);
+      const cleanupClick = bindStylePickClick(doc, iframe);
+      return () => {
+        cleanupHover();
+        cleanupClick();
+        if (doc.body) {
+          setStylePickClass(doc, false);
+          makeBlocksEditable(doc);
+        }
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stylePickMode]);
 
   return (
     <iframe

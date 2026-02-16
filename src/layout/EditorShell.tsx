@@ -6,6 +6,8 @@ import { PreviewPane } from '../preview/PreviewPane';
 import { BlockDock } from '../block-dock/BlockDock';
 import { BlockSidebar } from '../block-dock/BlockSidebar';
 import { PropertyInspector } from '../inspector/PropertyInspector';
+import { StylePopup } from '../inspector/StylePopup';
+import { StylePickToggle } from '../inspector/StylePickToggle';
 import { ResizeHandle } from './ResizeHandle';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
@@ -110,11 +112,13 @@ export function EditorShell({ completionData, documentId, persistHistory }: Edit
             flexDirection: 'column',
             overflow: 'hidden',
             minWidth: 0,
+            position: 'relative',
           }}
         >
           <EditorErrorBoundary name="Code editor">
             <MklyEditor completionData={completionData} />
           </EditorErrorBoundary>
+          <StylePickToggle />
         </div>
 
         <ResizeHandle onResize={(d) => handleResize(0, d)} />
@@ -159,6 +163,7 @@ export function EditorShell({ completionData, documentId, persistHistory }: Edit
         completionData={completionData}
         onInsert={handleInsertBlock}
       />
+      <StylePopup completionData={completionData} />
     </>
   );
 }
