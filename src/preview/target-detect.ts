@@ -4,8 +4,9 @@
  * Priority:
  * 1. BEM `__target` class (e.g., mkly-core-card__img → "img")
  * 2. If clicked element IS the block root → "self"
- * 3. Tag-name fallback for elements without BEM classes (e.g., <p> → "p")
- *    This covers arbitrary content inside core/html and similar blocks.
+ * 3. Tag-name fallback with nth-of-type for unique targeting.
+ *    If there are multiple <p> elements, returns ">p:nth-of-type(N)"
+ *    so the style applies only to the specific element clicked.
  */
 export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   if (clickedEl === blockRootEl) return 'self';
@@ -29,13 +30,29 @@ export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   }
 
   // No BEM class found — return "self" for generic wrapper elements,
-  // or ">tag" for specific elements (descendant tag selector).
-  // The ">" prefix tells the style graph to emit a descendant CSS selector
-  // (e.g. ".mkly-block p") instead of a BEM selector (".mkly-block__p").
+  // or ">tag" / ">tag:nth-of-type(N)" for specific elements.
   const tag = clickedEl.tagName.toLowerCase();
   if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main') {
     return 'self';
   }
+
+  // Count siblings of the same tag type within the same parent.
+  // If multiple exist, use :nth-of-type(N) for unique targeting.
+  const parent = clickedEl.parentElement;
+  if (parent) {
+    let sameTagCount = 0;
+    let position = 0;
+    for (const child of parent.children) {
+      if (child.tagName === clickedEl.tagName) {
+        sameTagCount++;
+        if (child === clickedEl) position = sameTagCount;
+      }
+    }
+    if (sameTagCount > 1 && position > 0) {
+      return `>${tag}:nth-of-type(${position})`;
+    }
+  }
+
   return `>${tag}`;
 }
 

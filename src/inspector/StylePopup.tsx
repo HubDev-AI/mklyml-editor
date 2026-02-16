@@ -5,6 +5,8 @@ import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
 import { getBlockDisplayName } from '@mklyml/core';
+import { getBlockIcon, getBlockIconColor } from '../icons';
+import { KitBadge } from '../ui/kit-badge';
 import type { CompletionData } from '@mklyml/core';
 
 interface StylePopupProps {
@@ -13,6 +15,14 @@ interface StylePopupProps {
 
 const POPUP_WIDTH = 320;
 const POPUP_MAX_HEIGHT = 480;
+
+/** Format a tag target for display: ">p" → "<p>", ">p:nth-of-type(2)" → "<p> #2" */
+function formatTagTarget(target: string): string {
+  const raw = target.slice(1); // remove ">"
+  const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
+  if (nthMatch) return `<${nthMatch[1]}> #${nthMatch[2]}`;
+  return `<${raw}>`;
+}
 
 export function StylePopup({ completionData }: StylePopupProps) {
   const popup = useEditorStore((s) => s.stylePopup);
@@ -25,8 +35,14 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
-  // Drag state
-  const dragRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number } | null>(null);
+  // Drag: use a ref for position to avoid stale closures in event handlers
+  const posRef = useRef({ left: 0, top: 0 });
+  const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
+
+  function updatePos(p: { left: number; top: number }) {
+    posRef.current = p;
+    setPos(p);
+  }
 
   // Compute position when popup changes
   useEffect(() => {
@@ -42,18 +58,16 @@ export function StylePopup({ completionData }: StylePopupProps) {
     let top = anchorRect.y;
     top = Math.max(4, Math.min(top, window.innerHeight - POPUP_MAX_HEIGHT - 4));
 
-    setPos({ left, top });
+    updatePos({ left, top });
   }, [popup]);
 
-  // Drag handlers — allow moving the popup by dragging the header
+  // Drag handlers on window — refs avoid stale closure issues
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!dragRef.current) return;
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
-      setPos({
-        left: Math.max(0, Math.min(dragRef.current.startLeft + dx, window.innerWidth - POPUP_WIDTH)),
-        top: Math.max(0, Math.min(dragRef.current.startTop + dy, window.innerHeight - 100)),
+      updatePos({
+        left: Math.max(0, Math.min(e.clientX - dragRef.current.offsetX, window.innerWidth - POPUP_WIDTH)),
+        top: Math.max(0, Math.min(e.clientY - dragRef.current.offsetY, window.innerHeight - 100)),
       });
     };
     const onUp = () => {
@@ -68,16 +82,14 @@ export function StylePopup({ completionData }: StylePopupProps) {
   }, []);
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
-    // Don't start drag if clicking the close button
     if ((e.target as HTMLElement).closest('button')) return;
+    // Capture offset between cursor and popup corner — uses ref for fresh value
     dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startLeft: pos.left,
-      startTop: pos.top,
+      offsetX: e.clientX - posRef.current.left,
+      offsetY: e.clientY - posRef.current.top,
     };
     e.preventDefault();
-  }, [pos.left, pos.top]);
+  }, []);
 
   // Dismiss on click outside
   useEffect(() => {
@@ -133,22 +145,22 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const displayName = getBlockDisplayName(popup.blockType, blockDocs);
   const blockTargets = completionData.targets.get(popup.blockType);
   const blockStyleHints = completionData.styleHints.get(popup.blockType);
+  const kitName = completionData.blockKits.get(popup.blockType);
+  const Icon = getBlockIcon(popup.blockType, completionData);
+  const iconColor = getBlockIconColor(popup.blockType, completionData);
 
-  // Tag targets (">p", ">h1") are descendant selectors — always valid targets.
+  // Tag targets (">p", ">p:nth-of-type(2)") are descendant selectors — always valid.
   const isTagTarget = popup.target.startsWith('>');
   const isKnownTarget = popup.target === 'self' || popup.target === 'self:hover'
     || !!blockTargets?.[popup.target] || isTagTarget;
 
-  // Display label: BEM targets use their definition label, tag targets show as <tag>
   const targetLabel = popup.target === 'self'
     ? 'Self'
     : isTagTarget
-      ? `<${popup.target.slice(1)}>`
+      ? formatTagTarget(popup.target)
       : blockTargets?.[popup.target]?.label
         ?? popup.target;
 
-  // Tag targets get their own tab (treated as sub-element targets).
-  // Unknown non-tag targets fall back to "self".
   const effectiveTab = isKnownTarget ? popup.target : 'self';
 
   return createPortal(
@@ -170,24 +182,44 @@ export function StylePopup({ completionData }: StylePopupProps) {
           fontFamily: "'Plus Jakarta Sans', sans-serif",
         }}
       >
-        {/* Header — draggable */}
+        {/* Header — draggable, with icon + kit badge like BlockHeader */}
         <div
           onMouseDown={onHeaderMouseDown}
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            gap: 8,
             padding: '8px 12px',
             borderBottom: '1px solid var(--ed-border)',
             cursor: 'grab',
             userSelect: 'none',
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ed-text)' }}>
-            {displayName}
-            {popup.label && <span style={{ fontWeight: 400, color: 'var(--ed-text-muted)' }}> : {popup.label}</span>}
-            <span style={{ color: 'var(--ed-text-muted)', fontWeight: 400 }}> &rsaquo; {targetLabel}</span>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 24,
+            height: 24,
+            borderRadius: 5,
+            background: iconColor.bg,
+            color: iconColor.color,
+            flexShrink: 0,
+          }}>
+            <Icon size={12} />
           </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ed-text)' }}>
+                {displayName}
+              </span>
+              {kitName && <KitBadge kit={kitName} />}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--ed-text-muted)' }}>
+              {popup.label && <span>{popup.label} &rsaquo; </span>}
+              {targetLabel}
+            </div>
+          </div>
           <button
             onClick={closeStylePopup}
             style={{
@@ -198,6 +230,7 @@ export function StylePopup({ completionData }: StylePopupProps) {
               padding: '0 2px',
               fontSize: 16,
               lineHeight: 1,
+              flexShrink: 0,
             }}
             title="Close"
           >

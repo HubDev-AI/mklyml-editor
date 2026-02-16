@@ -111,14 +111,14 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
                 />
               );
             })}
-            {/* Dynamic tab for tag descendant targets (">p", ">h1", etc.) */}
+            {/* Dynamic tab for tag descendant targets (">p", ">p:nth-of-type(2)", etc.) */}
             {initialTab?.startsWith('>') && (
               <TabButton
-                label={`<${initialTab.slice(1)}>`}
+                label={formatTagTab(initialTab)}
                 value={initialTab}
                 active={activeTab}
                 onClick={setActiveTab}
-                title={`Style all <${initialTab.slice(1)}> elements in this block`}
+                title="Style this element"
               />
             )}
             {hasAnyTargetStyles && activeTab === 'self' && (
@@ -320,6 +320,14 @@ function filterSectors(sectors: StyleSector[], allowed: string[]): StyleSector[]
     }
   }
   return result;
+}
+
+/** Format a tag target for tab display: ">p" → "<p>", ">p:nth-of-type(2)" → "<p>#2" */
+function formatTagTab(target: string): string {
+  const raw = target.slice(1);
+  const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
+  if (nthMatch) return `<${nthMatch[1]}>#${nthMatch[2]}`;
+  return `<${raw}>`;
 }
 
 export { StyleRow };
