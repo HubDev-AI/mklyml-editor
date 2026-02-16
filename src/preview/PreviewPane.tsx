@@ -76,14 +76,13 @@ export function PreviewPane() {
       bindStylePickClick(doc, iframe);
     }
 
+    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
+    // After doc.close() the DOM is built and layout is computable.
     if (anchor) {
-      requestAnimationFrame(() => {
-        restoreScrollAnchor(doc, anchor);
-        setScrollLock(false);
-      });
-    } else {
-      requestAnimationFrame(() => setScrollLock(false));
+      restoreScrollAnchor(doc, anchor);
     }
+
+    requestAnimationFrame(() => setScrollLock(false));
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, outputMode, setScrollLock, theme]);
 

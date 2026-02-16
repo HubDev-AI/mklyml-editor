@@ -52,11 +52,17 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
+    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
+    // After doc.close() the DOM is built and layout is computable.
+    if (anchor) {
+      restoreScrollAnchor(doc, anchor);
+    }
+
     const isStylePick = stylePickModeRef.current;
 
-    const finalize = () => {
+    // Finalize in rAF (editable setup, event handlers) — scroll is already correct
+    requestAnimationFrame(() => {
       if (isStylePick) {
-        // Style pick mode: disable editing, bind pick handlers
         setStylePickClass(doc, true);
         doc.querySelectorAll('[contenteditable]').forEach(el =>
           el.setAttribute('contenteditable', 'false'));
@@ -66,16 +72,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
         makeBlocksEditable(doc);
       }
       setScrollLock(false);
-    };
-
-    if (anchor) {
-      requestAnimationFrame(() => {
-        restoreScrollAnchor(doc, anchor);
-        finalize();
-      });
-    } else {
-      requestAnimationFrame(finalize);
-    }
+    });
     setTimeout(() => setScrollLock(false), 100);
 
     doc.body.addEventListener('input', () => handleInputRef.current());

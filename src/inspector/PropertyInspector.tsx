@@ -27,9 +27,6 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const computedStyles = useEditorStore((s) => s.computedStyles);
   const styleGraph = useEditorStore((s) => s.styleGraph);
   const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
-  const stylePickMode = useEditorStore((s) => s.stylePickMode);
-  const setStylePickMode = useEditorStore((s) => s.setStylePickMode);
-
   const focusBlock = useEditorStore((s) => s.focusBlock);
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
@@ -146,45 +143,13 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       height: '100%',
       overflow: 'auto',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <BlockHeader
-            type={cursorBlock.type}
-            startLine={cursorBlock.startLine}
-            endLine={cursorBlock.endLine}
-            kitName={kitName}
-            completionData={completionData}
-          />
-        </div>
-        <button
-          onClick={() => setStylePickMode(!stylePickMode)}
-          title={stylePickMode ? 'Exit style picker' : 'Pick element to style'}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            border: stylePickMode ? '1px solid var(--ed-accent)' : '1px solid var(--ed-border)',
-            borderRadius: 6,
-            background: stylePickMode ? 'var(--ed-accent)' : 'transparent',
-            color: stylePickMode ? '#fff' : 'var(--ed-text-muted)',
-            cursor: 'pointer',
-            marginRight: 12,
-            flexShrink: 0,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="6" />
-            <circle cx="12" cy="12" r="2" />
-            <line x1="12" y1="2" x2="12" y2="6" />
-            <line x1="12" y1="18" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="6" y2="12" />
-            <line x1="18" y1="12" x2="22" y2="12" />
-          </svg>
-        </button>
-      </div>
+      <BlockHeader
+        type={cursorBlock.type}
+        startLine={cursorBlock.startLine}
+        endLine={cursorBlock.endLine}
+        kitName={kitName}
+        completionData={completionData}
+      />
       <PropertyForm
         blockType={cursorBlock.type}
         properties={cursorBlock.properties}
