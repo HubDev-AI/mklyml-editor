@@ -322,9 +322,11 @@ function filterSectors(sectors: StyleSector[], allowed: string[]): StyleSector[]
   return result;
 }
 
-/** Format a tag target for tab display: ">p" → "<p>", ">p:nth-of-type(2)" → "<p>#2" */
+/** Format a descendant target for tab display: ">p" → "<p>", ">.s1" → ".s1", ">p:nth-of-type(2)" → "<p>#2" */
 function formatTagTab(target: string): string {
   const raw = target.slice(1);
+  // Class target: ".s1" → ".s1"
+  if (raw.startsWith('.')) return raw;
   const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
   if (nthMatch) return `<${nthMatch[1]}>#${nthMatch[2]}`;
   return `<${raw}>`;

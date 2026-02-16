@@ -1,7 +1,7 @@
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import type { FocusOrigin, FocusIntent } from '../store/editor-store';
 import { useEditorStore } from '../store/editor-store';
-import { detectTarget, extractBlockType } from './target-detect';
+import { detectTarget, extractBlockType, generateStyleClass, injectClassAnnotation } from './target-detect';
 
 export const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
 
@@ -154,7 +154,25 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     // Detect which sub-element target was clicked (BEM __target class).
     // For elements without BEM classes (e.g. <p> inside core/html),
     // detectTarget returns the tag name as a fallback.
-    const detectedTarget = detectTarget(clicked, block);
+    let target = detectTarget(clicked, block);
+
+    // If target is a plain tag (">p", ">h2") — inject a unique class into
+    // the source so the style is stable across content reordering.
+    if (/^>[a-z]/.test(target)) {
+      const lineAttr = clicked.getAttribute('data-mkly-line');
+      if (lineAttr !== null) {
+        const lineNum = parseInt(lineAttr, 10);
+        const store = useEditorStore.getState();
+        const className = generateStyleClass(store.source);
+        const newSource = injectClassAnnotation(store.source, lineNum, className);
+        if (newSource) {
+          store.setSource(newSource);
+          // Also add class to DOM for immediate visual feedback
+          clicked.classList.add(className);
+          target = `>.${className}`;
+        }
+      }
+    }
 
     // Label from BEM modifier class (e.g., mkly-core-card--hero → "hero")
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
@@ -178,7 +196,7 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     const line = Number(block.dataset.mklyLine);
     const store = useEditorStore.getState();
     store.focusBlock(line, 'preview');
-    store.openStylePopup({ blockType, target: detectedTarget, label, anchorRect });
+    store.openStylePopup({ blockType, target, label, anchorRect });
   };
 
   doc.addEventListener('mousedown', handler, true);

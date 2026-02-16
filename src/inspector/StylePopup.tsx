@@ -16,9 +16,11 @@ interface StylePopupProps {
 const POPUP_WIDTH = 320;
 const POPUP_MAX_HEIGHT = 480;
 
-/** Format a tag target for display: ">p" → "<p>", ">p:nth-of-type(2)" → "<p> #2" */
+/** Format a descendant target for display: ">p" → "<p>", ">.s1" → ".s1", ">p:nth-of-type(2)" → "<p> #2" */
 function formatTagTarget(target: string): string {
   const raw = target.slice(1); // remove ">"
+  // Class target: ".s1" → ".s1"
+  if (raw.startsWith('.')) return raw;
   const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
   if (nthMatch) return `<${nthMatch[1]}> #${nthMatch[2]}`;
   return `<${raw}>`;
@@ -182,10 +184,13 @@ export function StylePopup({ completionData }: StylePopupProps) {
           fontFamily: "'Plus Jakarta Sans', sans-serif",
         }}
       >
-        {/* Header — draggable, with icon + kit badge like BlockHeader */}
+        {/* Header — sticky + draggable, with icon + kit badge like BlockHeader */}
         <div
           onMouseDown={onHeaderMouseDown}
           style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -193,6 +198,9 @@ export function StylePopup({ completionData }: StylePopupProps) {
             borderBottom: '1px solid var(--ed-border)',
             cursor: 'grab',
             userSelect: 'none',
+            background: 'var(--ed-glass-bg, rgba(255,255,255,0.85))',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '12px 12px 0 0',
           }}
         >
           <span style={{
