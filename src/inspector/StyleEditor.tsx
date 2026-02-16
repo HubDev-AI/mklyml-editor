@@ -62,8 +62,10 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
       ? TARGET_SECTORS
       : DEFAULT_SELF_SECTORS;
 
-  // Filter sectors by styleHints (if provided)
-  const allowedProps = styleHints?.[activeTab] ?? styleHints?.['self'];
+  // Filter sectors by styleHints (if provided).
+  // Tag targets (">p", ">h1") skip filtering — they're ad-hoc and need all properties.
+  const isTagTarget = activeTab.startsWith('>');
+  const allowedProps = isTagTarget ? undefined : (styleHints?.[activeTab] ?? styleHints?.['self']);
   const sectors = allowedProps
     ? filterSectors(rawSectors, allowedProps)
     : rawSectors;
@@ -109,6 +111,16 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
                 />
               );
             })}
+            {/* Dynamic tab for tag descendant targets (">p", ">p:nth-of-type(2)", etc.) */}
+            {initialTab?.startsWith('>') && (
+              <TabButton
+                label={formatTagTab(initialTab)}
+                value={initialTab}
+                active={activeTab}
+                onClick={setActiveTab}
+                title="Style this element"
+              />
+            )}
             {hasAnyTargetStyles && activeTab === 'self' && (
               <span style={{ fontSize: 9, background: 'var(--ed-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', marginLeft: 'auto', alignSelf: 'center' }}>
                 sub-elements active
@@ -308,6 +320,16 @@ function filterSectors(sectors: StyleSector[], allowed: string[]): StyleSector[]
     }
   }
   return result;
+}
+
+/** Format a descendant target for tab display: ">p" → "<p>", ">.s1" → ".s1", ">p:nth-of-type(2)" → "<p>#2" */
+function formatTagTab(target: string): string {
+  const raw = target.slice(1);
+  // Class target: ".s1" → ".s1"
+  if (raw.startsWith('.')) return raw;
+  const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
+  if (nthMatch) return `<${nthMatch[1]}>#${nthMatch[2]}`;
+  return `<${raw}>`;
 }
 
 export { StyleRow };

@@ -133,7 +133,6 @@ title: The Cat's Meow Newsletter
 subject: Your Weekly Dose of Feline Fun & Facts
 
 --- core/header
-title: logo:
 title: The Cat's Meow Newsletter
 
 A weekly purr-fect collection of news, tips, and adorable cat content straight to your inbox!
