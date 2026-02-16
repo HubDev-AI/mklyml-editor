@@ -65,16 +65,56 @@ export function generateStyleClass(source: string): string {
 
 /**
  * Inject a {.className} annotation onto a specific source line.
- * Returns the modified source, or null if the line couldn't be found.
+ * If the target line is blank, scans backward to find the nearest content line.
+ * Returns the modified source, or null if no suitable line was found.
  */
 export function injectClassAnnotation(source: string, lineNum: number, className: string): string | null {
   const lines = source.split('\n');
   if (lineNum < 0 || lineNum >= lines.length) return null;
 
-  const line = lines[lineNum];
+  // Find the actual content line — scan backward if target is blank or a block header.
+  let targetIdx = lineNum;
+  while (targetIdx >= 0) {
+    const line = lines[targetIdx].trim();
+    // Skip blank lines and block headers (--- blockType)
+    if (line === '' || line.startsWith('---')) {
+      targetIdx--;
+      continue;
+    }
+    // Skip property lines (key: value inside block header)
+    if (/^\w[\w-]*:\s/.test(line) && targetIdx > 0 && lines[targetIdx - 1].trim().startsWith('---')) {
+      targetIdx--;
+      continue;
+    }
+    break;
+  }
+  if (targetIdx < 0) return null;
+
+  const line = lines[targetIdx];
   // Don't inject if line already has a class annotation
   if (/\{\.\w[\w-]*\}\s*$/.test(line)) return null;
 
-  lines[lineNum] = line.trimEnd() + ` {.${className}}`;
+  lines[targetIdx] = line.trimEnd() + ` {.${className}}`;
   return lines.join('\n');
+}
+
+/**
+ * Find the nearest element with data-mkly-line, walking up from the clicked element.
+ * Returns the line number and the element, or null if not found.
+ */
+export function findSourceLine(el: Element, stopAt: Element): { lineNum: number; el: Element } | null {
+  let current: Element | null = el;
+  while (current && current !== stopAt) {
+    const attr = current.getAttribute('data-mkly-line');
+    if (attr !== null) {
+      return { lineNum: parseInt(attr, 10), el: current };
+    }
+    current = current.parentElement;
+  }
+  // Check the stop element itself
+  const attr = stopAt.getAttribute('data-mkly-line');
+  if (attr !== null) {
+    return { lineNum: parseInt(attr, 10), el: stopAt };
+  }
+  return null;
 }

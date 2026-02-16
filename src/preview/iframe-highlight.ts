@@ -1,7 +1,7 @@
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import type { FocusOrigin, FocusIntent } from '../store/editor-store';
 import { useEditorStore } from '../store/editor-store';
-import { detectTarget, extractBlockType, generateStyleClass, injectClassAnnotation } from './target-detect';
+import { detectTarget, extractBlockType, generateStyleClass, injectClassAnnotation, findSourceLine } from './target-detect';
 
 export const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
 
@@ -159,16 +159,16 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     // If target is a plain tag (">p", ">h2") — inject a unique class into
     // the source so the style is stable across content reordering.
     if (/^>[a-z]/.test(target)) {
-      const lineAttr = clicked.getAttribute('data-mkly-line');
-      if (lineAttr !== null) {
-        const lineNum = parseInt(lineAttr, 10);
+      // Walk up from clicked element to find data-mkly-line (it may be on a parent)
+      const sourceLine = findSourceLine(clicked, block);
+      if (sourceLine) {
         const store = useEditorStore.getState();
         const className = generateStyleClass(store.source);
-        const newSource = injectClassAnnotation(store.source, lineNum, className);
+        const newSource = injectClassAnnotation(store.source, sourceLine.lineNum, className);
         if (newSource) {
           store.setSource(newSource);
-          // Also add class to DOM for immediate visual feedback
-          clicked.classList.add(className);
+          // Add class to the element that has data-mkly-line (the actual content element)
+          sourceLine.el.classList.add(className);
           target = `>.${className}`;
         }
       }
