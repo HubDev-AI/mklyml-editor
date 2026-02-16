@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editor-store';
 import { mkly } from '@mklyml/core';
 import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
-import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
+import { morphIframeContent } from './iframe-morph';
 
 interface EditablePreviewProps {
   onSyncError: (error: string | null) => void;
@@ -21,7 +21,6 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const focusIntent = useEditorStore((s) => s.focusIntent);
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const scrollLock = useEditorStore((s) => s.scrollLock);
-  const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
@@ -31,6 +30,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const handleInputRef = useRef<() => void>(() => {});
   const syncRef = useRef(new SyncEngine());
   const stylePickModeRef = useRef(stylePickMode);
+  const initializedRef = useRef(false);
   stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
@@ -38,29 +38,26 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     return () => sync.destroy();
   }, []);
 
+  /**
+   * Full document write — used for first render and theme changes.
+   * Sets up the iframe document structure with all CSS and event handlers.
+   */
   const writeToIframe = useCallback((content: string) => {
     const iframe = iframeRef.current;
     if (!iframe) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
 
-    setScrollLock(true);
-    const anchor = captureScrollAnchor(doc);
     const isDark = useEditorStore.getState().theme === 'dark';
     const darkCss = isDark ? IFRAME_DARK_CSS : '';
     doc.open();
     doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
-    // Restore scroll synchronously BEFORE any paint to prevent visible jump.
-    // After doc.close() the DOM is built and layout is computable.
-    if (anchor) {
-      restoreScrollAnchor(doc, anchor);
-    }
+    initializedRef.current = true;
 
     const isStylePick = stylePickModeRef.current;
 
-    // Finalize in rAF (editable setup, event handlers) — scroll is already correct
     requestAnimationFrame(() => {
       if (isStylePick) {
         setStylePickClass(doc, true);
@@ -71,18 +68,43 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       } else {
         makeBlocksEditable(doc);
       }
-      setScrollLock(false);
     });
-    setTimeout(() => setScrollLock(false), 100);
 
     doc.body.addEventListener('input', () => handleInputRef.current());
-    // Prevent link/button clicks from navigating the iframe — let the user edit the text instead
     doc.addEventListener('click', (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest('a');
       if (a) e.preventDefault();
     });
 
     bindBlockClicks(doc, 'edit');
+  }, []);
+
+  /**
+   * DOM morph — used for subsequent content/style updates.
+   * Patches only changed elements, preserving scroll, focus, and event handlers.
+   */
+  const morphToIframe = useCallback((content: string) => {
+    const iframe = iframeRef.current;
+    if (!iframe) return false;
+    const doc = iframe.contentDocument;
+    if (!doc) return false;
+
+    // Build the full HTML that would have been written — morphIframeContent
+    // needs the same structure to find .mkly-document and style tags.
+    const isDark = useEditorStore.getState().theme === 'dark';
+    const darkCss = isDark ? IFRAME_DARK_CSS : '';
+    const fullHtml = `<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`;
+
+    const morphed = morphIframeContent(doc, fullHtml);
+    if (!morphed) return false;
+
+    // Re-apply editable attributes after morph (handles new/changed elements)
+    const isStylePick = stylePickModeRef.current;
+    if (!isStylePick) {
+      makeBlocksEditable(doc);
+    }
+
+    return true;
   }, []);
 
   const handleInput = useCallback(() => {
@@ -101,8 +123,6 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       editingBlockClass = classes.find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--')) ?? null;
     }
 
-    // Build full HTML including preamble elements (meta tags, style/defines scripts)
-    // so the reverse engine can dynamically reconstruct the preamble.
     const doc = iframe?.contentDocument;
     const parts: string[] = [];
     if (doc) {
@@ -119,11 +139,13 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
     const revertIframe = (errorMsg: string) => {
       onSyncError(errorMsg);
-      // Actually revert the iframe DOM to the last compiled HTML
       setTimeout(() => {
         isEditingRef.current = false;
-        writeToIframe(useEditorStore.getState().html);
-        // Error persists until next successful edit clears it (no auto-dismiss)
+        // Revert via morph if possible, fall back to full write
+        const latestHtml = useEditorStore.getState().html;
+        if (!morphToIframe(latestHtml)) {
+          writeToIframe(latestHtml);
+        }
       }, 100);
     };
 
@@ -172,13 +194,10 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
           }
         }
       } else {
-        // Compare edited HTML against compiled HTML to distinguish
-        // "edit lost" from "user reverted"
         const compiledHtml = cleanHtmlForReverse(
           iframe?.contentDocument?.querySelector('.mkly-document')?.innerHTML
             ?? lastHtmlRef.current,
         );
-        // Normalize whitespace for comparison
         const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
         if (norm(editedHtml) !== norm(compiledHtml)) {
           onSyncError('Edit was not applied — this change is not supported in the current block type');
@@ -189,16 +208,28 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
       setTimeout(() => { isEditingRef.current = false; }, 200);
     }, 300);
-  }, [setSource, onSyncError]);
+  }, [setSource, onSyncError, morphToIframe, writeToIframe]);
   handleInputRef.current = handleInput;
 
+  // Sync HTML to iframe: morph on update, full write on first render or theme change
   useEffect(() => {
     if (isEditingRef.current) return;
     if (html === lastHtmlRef.current && theme === (iframeRef.current?.dataset.lastTheme ?? 'dark')) return;
+
+    const themeChanged = theme !== (iframeRef.current?.dataset.lastTheme ?? 'dark');
     lastHtmlRef.current = html;
     if (iframeRef.current) iframeRef.current.dataset.lastTheme = theme;
-    writeToIframe(html);
-  }, [html, writeToIframe, theme]);
+
+    // Theme change requires full rewrite (CSS is in the head template).
+    // First render also requires full write. Otherwise, morph.
+    if (!initializedRef.current || themeChanged) {
+      writeToIframe(html);
+    } else {
+      if (!morphToIframe(html)) {
+        writeToIframe(html);
+      }
+    }
+  }, [html, writeToIframe, morphToIframe, theme]);
 
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
@@ -210,8 +241,6 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
 
   // Style pick mode: handle toggle (when no iframe rewrite occurred).
-  // After iframe rewrites, writeToIframe handles binding via ref.
-  // This effect handles the case where stylePickMode changes without html changing.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
