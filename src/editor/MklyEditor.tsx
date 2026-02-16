@@ -16,6 +16,7 @@ import { blockDeletePlugin } from './block-delete-plugin';
 import { applyExternalUpdate } from './diff-update';
 import { clearPendingScroll } from './safe-dispatch';
 import { shouldScrollToBlock } from '../store/selection-orchestrator';
+import { parseCursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@mklyml/core';
 
 interface MklyEditorProps {
@@ -83,6 +84,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
   const focusIntent = useEditorStore((s) => s.focusIntent);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const wordWrap = useEditorStore((s) => s.mklyWordWrap);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
 
   const sourceRef = useRef(source);
   const errorsRef = useRef(errors);
@@ -352,6 +354,41 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
       useEditorStore.getState().focusBlock(newLineNum, 'block-dock');
     });
   }, [completionData]);
+
+  // Style pick mode: clicking in code editor opens the style popup at cursor
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !stylePickMode) return;
+
+    const handler = (e: MouseEvent) => {
+      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+      if (pos === null) return;
+      const line = view.state.doc.lineAt(pos);
+      const source = view.state.doc.toString();
+      const block = parseCursorBlock(source, line.number);
+      if (!block || block.isSpecial) return;
+
+      const coords = view.coordsAtPos(pos);
+      if (!coords) return;
+
+      const store = useEditorStore.getState();
+      store.focusBlock(line.number, 'mkly');
+      store.openStylePopup({
+        blockType: block.type,
+        target: 'self',
+        label: block.label,
+        anchorRect: {
+          x: coords.left,
+          y: coords.top,
+          width: 0,
+          height: coords.bottom - coords.top,
+        },
+      });
+    };
+
+    view.dom.addEventListener('mousedown', handler);
+    return () => view.dom.removeEventListener('mousedown', handler);
+  }, [stylePickMode]);
 
   return (
     <>

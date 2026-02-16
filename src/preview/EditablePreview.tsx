@@ -6,7 +6,7 @@ import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 
 interface EditablePreviewProps {
@@ -24,6 +24,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
   const lastHtmlRef = useRef('');
@@ -46,7 +47,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     const isDark = useEditorStore.getState().theme === 'dark';
     const darkCss = isDark ? IFRAME_DARK_CSS : '';
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
     const finalize = () => {
@@ -197,6 +198,32 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine));
     }
   }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
+
+  // Style pick mode: toggle hover/click handlers and contenteditable
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument;
+    if (!doc?.body) return;
+
+    setStylePickClass(doc, stylePickMode);
+
+    if (stylePickMode) {
+      // Disable contenteditable on all blocks
+      doc.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'false'));
+      const cleanupHover = bindStylePickHover(doc);
+      const cleanupClick = bindStylePickClick(doc, iframe);
+      return () => {
+        cleanupHover();
+        cleanupClick();
+        if (doc.body) {
+          setStylePickClass(doc, false);
+          // Re-enable contenteditable
+          doc.querySelectorAll('[contenteditable="false"]').forEach(el => el.setAttribute('contenteditable', 'true'));
+        }
+      };
+    }
+  }, [stylePickMode]);
 
   return (
     <iframe

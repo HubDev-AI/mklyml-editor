@@ -6,6 +6,7 @@ import { PreviewPane } from '../preview/PreviewPane';
 import { BlockDock } from '../block-dock/BlockDock';
 import { BlockSidebar } from '../block-dock/BlockSidebar';
 import { PropertyInspector } from '../inspector/PropertyInspector';
+import { StylePopup } from '../inspector/StylePopup';
 import { ResizeHandle } from './ResizeHandle';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
@@ -159,6 +160,7 @@ export function EditorShell({ completionData, documentId, persistHistory }: Edit
         completionData={completionData}
         onInsert={handleInsertBlock}
       />
+      <StylePopup completionData={completionData} />
     </>
   );
 }

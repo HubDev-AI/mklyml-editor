@@ -71,6 +71,15 @@ interface EditorState {
   isNormalized: boolean;
   normalizationWarnings: Array<ParseError>;
 
+  // Style pick mode: click elements in preview to open floating style popup
+  stylePickMode: boolean;
+  stylePopup: {
+    blockType: string;
+    target: string;        // 'self', 'img', 'link', etc.
+    label?: string;
+    anchorRect: { x: number; y: number; width: number; height: number };
+  } | null;
+
   // Persistent undo/redo
   documentId: string;
   canUndo: boolean;
@@ -99,6 +108,9 @@ interface EditorState {
   setIsNormalized: (normalized: boolean) => void;
   setNormalizationWarnings: (warnings: Array<ParseError>) => void;
   setSelection: (state: Partial<SelectionState>, origin: FocusOrigin) => void;
+  setStylePickMode: (mode: boolean) => void;
+  openStylePopup: (info: EditorState['stylePopup']) => void;
+  closeStylePopup: () => void;
 
   // Single entry point: any tab calls this to say "user is at this mkly line"
   focusBlock: (line: number, origin: FocusOrigin, intent?: FocusIntent) => void;
@@ -312,6 +324,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   htmlWordWrap: true,
   isNormalized: false,
   normalizationWarnings: [],
+  stylePickMode: false,
+  stylePopup: null,
   documentId: '_default',
   canUndo: false,
   canRedo: false,
@@ -352,6 +366,10 @@ export const useEditorStore = create<EditorState>((set) => ({
     focusOrigin: origin,
     focusVersion: state.focusVersion + 1,
   })),
+
+  setStylePickMode: (mode) => set(mode ? { stylePickMode: true } : { stylePickMode: false, stylePopup: null }),
+  openStylePopup: (info) => set({ stylePopup: info }),
+  closeStylePopup: () => set({ stylePopup: null }),
 
   focusBlock: (line, origin, intent = 'navigate') => set((state) => {
     const { blockLine, blockType } = resolveBlockLine(line, state.source);
