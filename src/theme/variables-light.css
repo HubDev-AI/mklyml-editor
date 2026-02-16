@@ -1,0 +1,24 @@
+:root {
+  --ed-bg: hsl(30 20% 98%);
+  --ed-bg-alt: hsl(30 15% 95%);
+  --ed-surface: hsl(0 0% 100%);
+  --ed-surface-alt: hsl(30 10% 97%);
+  --ed-border: rgba(0, 0, 0, 0.1);
+  --ed-border-strong: rgba(0, 0, 0, 0.18);
+  --ed-text: hsl(0 0% 12%);
+  --ed-text-muted: hsl(0 0% 45%);
+  --ed-accent: hsl(25 95% 53%);
+  --ed-accent-dim: hsl(25 80% 42%);
+  --ed-error-bg: hsl(0 60% 96%);
+  --ed-error-text: hsl(0 70% 45%);
+  --ed-warning-text: hsl(40 90% 40%);
+  --ed-success-text: hsl(145 60% 35%);
+  --ed-glass-bg: rgba(255, 255, 255, 0.85);
+  --ed-glass-border: rgba(0, 0, 0, 0.08);
+  --ed-glass-shadow: rgba(0, 0, 0, 0.06);
+  --ed-glass-inset: rgba(255, 255, 255, 1);
+  --ed-resize-handle: rgba(0, 0, 0, 0.12);
+  --ed-resize-handle-hover: rgba(0, 0, 0, 0.25);
+  --ed-scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --ed-scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+}

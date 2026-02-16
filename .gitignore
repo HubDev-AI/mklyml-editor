@@ -1,0 +1,7 @@
+.history
+.DS_Store
+.env
+sessions
+node_modules
+dist
+package-lock.json

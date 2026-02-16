@@ -1,0 +1,24 @@
+.dark {
+  --ed-bg: hsl(0 0% 4%);
+  --ed-bg-alt: hsl(0 0% 8%);
+  --ed-surface: hsl(0 0% 7%);
+  --ed-surface-alt: hsl(0 0% 10%);
+  --ed-border: rgba(255, 255, 255, 0.08);
+  --ed-border-strong: rgba(255, 255, 255, 0.15);
+  --ed-text: hsl(0 0% 90%);
+  --ed-text-muted: hsl(0 0% 55%);
+  --ed-accent: hsl(25 95% 53%);
+  --ed-accent-dim: hsl(25 80% 65%);
+  --ed-error-bg: hsl(0 40% 10%);
+  --ed-error-text: hsl(0 80% 70%);
+  --ed-warning-text: hsl(40 90% 65%);
+  --ed-success-text: hsl(145 60% 55%);
+  --ed-glass-bg: rgba(255, 255, 255, 0.06);
+  --ed-glass-border: rgba(255, 255, 255, 0.1);
+  --ed-glass-shadow: rgba(0, 0, 0, 0.4);
+  --ed-glass-inset: rgba(255, 255, 255, 0.08);
+  --ed-resize-handle: rgba(255, 255, 255, 0.1);
+  --ed-resize-handle-hover: rgba(255, 255, 255, 0.25);
+  --ed-scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --ed-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+}
