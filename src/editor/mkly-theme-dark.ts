@@ -117,7 +117,10 @@ const darkEditorTheme = EditorView.theme({
     transition: 'opacity 0.15s',
     userSelect: 'none',
   },
-  '.cm-line:hover + .mkly-delete-gutter .mkly-block-delete-btn, .mkly-delete-gutter .cm-gutterElement:hover .mkly-block-delete-btn': {
+  '.mkly-delete-gutter .cm-gutterElement.mkly-line-hover .mkly-block-delete-btn': {
+    opacity: '0.25',
+  },
+  '.mkly-delete-gutter .cm-gutterElement:hover .mkly-block-delete-btn': {
     opacity: '1',
   },
 }, { dark: true });
