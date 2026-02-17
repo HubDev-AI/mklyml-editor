@@ -75,8 +75,11 @@ interface EditorState {
   stylePickMode: boolean;
   stylePopup: {
     blockType: string;
-    target: string;        // 'self', 'img', 'link', etc.
+    target: string;        // 'self', 'img', 'link', '>.s1', '>li', etc.
     label?: string;
+    sourceLine: number;    // block's source line — used for cursor adjustment after style changes
+    targetLine?: number;   // content element's source line — for deferred class injection
+    targetIndex?: number;  // index among same-tag siblings (e.g., 2nd <li> → 1)
     anchorRect: { x: number; y: number; width: number; height: number };
   } | null;
 

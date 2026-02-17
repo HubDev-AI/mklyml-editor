@@ -4,6 +4,7 @@ import { StyleEditor } from './StyleEditor';
 import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
+import { generateStyleClass, injectClassAnnotation, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
 import { getBlockDisplayName } from '@mklyml/core';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
@@ -121,24 +122,59 @@ export function StylePopup({ completionData }: StylePopupProps) {
   }, [popup, closeStylePopup]);
 
   const handleStyleChange = useCallback((blockType: string, target: string, prop: string, value: string, label?: string) => {
-    const currentSource = useEditorStore.getState().source;
+    let workingSource = useEditorStore.getState().source;
     const currentGraph = useEditorStore.getState().styleGraph;
-    const currentCursor = useEditorStore.getState().cursorLine;
+    const popupData = useEditorStore.getState().stylePopup;
+    const blockLine = popupData?.sourceLine ?? useEditorStore.getState().cursorLine;
+    let workingTarget = target;
+    let workingLabel = label;
+
+    // Plain tag target (">li", ">p") without class — inject {.sN} on first style change.
+    // This keeps the annotation out of the source until a style is actually applied.
+    if (/^>[a-z]/.test(workingTarget) && popupData?.targetLine !== undefined) {
+      const className = generateStyleClass(workingSource);
+      const injected = injectClassAnnotation(workingSource, popupData.targetLine, className);
+      if (injected) {
+        workingSource = injected;
+        workingTarget = `>.${className}`;
+        // Update popup so subsequent changes reuse this class
+        useEditorStore.getState().openStylePopup({ ...popupData, target: workingTarget, targetLine: undefined });
+      }
+    }
+
+    // BEM target ("link", "img") without a label — auto-assign a block label so the
+    // style only applies to this specific block instance, not all blocks of the same type.
+    if (workingTarget !== 'self' && !workingTarget.startsWith('self:') && !workingTarget.startsWith('>') && !workingLabel && popupData) {
+      const newLabel = generateBlockLabel(workingSource);
+      const labeled = injectBlockLabel(workingSource, popupData.sourceLine, newLabel);
+      if (labeled) {
+        workingSource = labeled;
+        workingLabel = newLabel;
+        // Update popup so subsequent changes reuse this label
+        useEditorStore.getState().openStylePopup({ ...popupData, label: newLabel });
+      }
+    }
 
     const { newSource, newGraph, lineDelta } = applyStyleChange(
-      currentSource,
+      workingSource,
       currentGraph,
       blockType,
-      target,
+      workingTarget,
       prop,
       value,
-      label,
+      workingLabel,
     );
 
-    const adjustedCursor = currentCursor + lineDelta;
+    const adjustedLine = blockLine + lineDelta;
     setStyleGraph(newGraph);
     setSource(newSource);
-    focusBlock(adjustedCursor, 'inspector', 'edit-property');
+    focusBlock(adjustedLine, 'inspector', 'edit-property');
+
+    // Keep popup's sourceLine in sync so subsequent changes use the correct line
+    const latestPopup = useEditorStore.getState().stylePopup;
+    if (latestPopup && lineDelta !== 0) {
+      useEditorStore.getState().openStylePopup({ ...latestPopup, sourceLine: adjustedLine });
+    }
   }, [setSource, setStyleGraph, focusBlock]);
 
   if (!popup) return null;

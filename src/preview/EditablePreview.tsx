@@ -24,6 +24,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
+  const stylePopup = useEditorStore((s) => s.stylePopup);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
   const lastHtmlRef = useRef('');
@@ -234,11 +235,12 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock);
+    const styleTarget = stylePopup ? { blockType: stylePopup.blockType, target: stylePopup.target, targetIndex: stylePopup.targetIndex } : null;
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock, styleTarget);
     if (activeBlockLine !== null) {
-      setComputedStyles(queryComputedStyles(doc, activeBlockLine));
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles]);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup]);
 
   // Style pick mode: handle toggle (when no iframe rewrite occurred).
   useEffect(() => {

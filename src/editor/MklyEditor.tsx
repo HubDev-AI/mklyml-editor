@@ -377,6 +377,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
         blockType: block.type,
         target: 'self',
         label: block.label,
+        sourceLine: line.number,
         anchorRect: {
           x: coords.left,
           y: coords.top,

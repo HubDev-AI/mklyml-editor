@@ -24,6 +24,7 @@ export function PreviewPane() {
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
+  const stylePopup = useEditorStore((s) => s.stylePopup);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
@@ -76,12 +77,15 @@ export function PreviewPane() {
       (doc.head ?? doc.documentElement)?.appendChild(style);
     }
 
-    // Intercept link clicks — open in new browser tab instead of navigating the iframe
+    // Intercept link clicks — open in new browser tab instead of navigating the iframe.
+    // In style pick mode, just prevent navigation (don't open in new tab).
     doc.addEventListener('click', (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest('a');
       if (a?.href) {
         e.preventDefault();
-        window.open(a.href, '_blank', 'noopener');
+        if (!stylePickModeRef.current) {
+          window.open(a.href, '_blank', 'noopener');
+        }
       }
     });
 
@@ -104,11 +108,12 @@ export function PreviewPane() {
     if (!iframeVisible) return;
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock);
+    const styleTarget = stylePopup ? { blockType: stylePopup.blockType, target: stylePopup.target, targetIndex: stylePopup.targetIndex } : null;
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock, styleTarget);
     if (activeBlockLine !== null) {
-      setComputedStyles(queryComputedStyles(doc, activeBlockLine));
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles]);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup]);
 
   // Style pick mode: toggle hover/click handlers in preview iframe
   useEffect(() => {
