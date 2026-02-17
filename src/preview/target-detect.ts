@@ -70,10 +70,12 @@ export function generateStyleClass(source: string): string {
  */
 export function injectClassAnnotation(source: string, lineNum: number, className: string): string | null {
   const lines = source.split('\n');
-  if (lineNum < 0 || lineNum >= lines.length) return null;
+  // lineNum is 1-based (from data-mkly-line), convert to 0-based array index
+  const startIdx = lineNum - 1;
+  if (startIdx < 0 || startIdx >= lines.length) return null;
 
   // Find the actual content line — scan backward if target is blank or a block header.
-  let targetIdx = lineNum;
+  let targetIdx = startIdx;
   while (targetIdx >= 0) {
     const line = lines[targetIdx].trim();
     // Skip blank lines and block headers (--- blockType)
@@ -95,6 +97,35 @@ export function injectClassAnnotation(source: string, lineNum: number, className
   if (/\{\.\w[\w-]*\}\s*$/.test(line)) return null;
 
   lines[targetIdx] = line.trimEnd() + ` {.${className}}`;
+  return lines.join('\n');
+}
+
+/**
+ * Generate a unique block label (s1, s2, ...) that doesn't exist as a label in the source.
+ */
+export function generateBlockLabel(source: string): string {
+  const existing = [...source.matchAll(/^---\s+[\w/]+:\s*s(\d+)/gm)];
+  const maxNum = existing.length > 0
+    ? Math.max(...existing.map(m => parseInt(m[1])))
+    : 0;
+  return `s${maxNum + 1}`;
+}
+
+/**
+ * Inject a label onto a block header line.
+ * Transforms "--- blockType" into "--- blockType: label".
+ * Returns the modified source, or null if the line already has a label or is invalid.
+ */
+export function injectBlockLabel(source: string, blockLine: number, label: string): string | null {
+  const lines = source.split('\n');
+  // blockLine is 1-based (from data-mkly-line), convert to 0-based array index
+  const idx = blockLine - 1;
+  if (idx < 0 || idx >= lines.length) return null;
+  const line = lines[idx];
+  // Match "--- blockType" without existing label
+  const match = line.match(/^(---\s+[\w/]+)\s*$/);
+  if (!match) return null; // already has a label or invalid format
+  lines[idx] = `${match[1]}: ${label}`;
   return lines.join('\n');
 }
 
