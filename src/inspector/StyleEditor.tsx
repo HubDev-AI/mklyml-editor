@@ -65,7 +65,9 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
   // Filter sectors by styleHints (if provided).
   // Tag targets (">p", ">h1") skip filtering — they're ad-hoc and need all properties.
   const isTagTarget = activeTab.startsWith('>');
-  const allowedProps = isTagTarget ? undefined : (styleHints?.[activeTab] ?? styleHints?.['self']);
+  const allowedProps = isTagTarget
+    ? (styleHints?.['>'] ?? undefined)
+    : (styleHints?.[activeTab] ?? styleHints?.['self']);
   const sectors = allowedProps
     ? filterSectors(rawSectors, allowedProps)
     : rawSectors;
@@ -298,15 +300,49 @@ function StyleRow({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
-function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string }>; onChange: (v: string) => void }) {
+function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string; group?: string }>; onChange: (v: string) => void }) {
   const isCustom = value !== '' && !presets.some(p => p.value === value);
+  const hasGroups = presets.some(p => p.group);
+
+  if (!hasGroups) {
+    return (
+      <select
+        value={isCustom ? '__custom__' : value}
+        onChange={(e) => onChange(e.target.value === '__custom__' ? value : e.target.value)}
+        style={selectStyle}
+      >
+        {presets.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+        {isCustom && <option value="__custom__">Custom: {value}</option>}
+      </select>
+    );
+  }
+
+  // Group presets by category for <optgroup> rendering
+  const grouped: { group: string; items: typeof presets }[] = [];
+  const ungrouped: typeof presets = [];
+  const groupMap = new Map<string, typeof presets>();
+  for (const p of presets) {
+    if (p.group) {
+      let arr = groupMap.get(p.group);
+      if (!arr) { arr = []; groupMap.set(p.group, arr); grouped.push({ group: p.group, items: arr }); }
+      arr.push(p);
+    } else {
+      ungrouped.push(p);
+    }
+  }
+
   return (
     <select
       value={isCustom ? '__custom__' : value}
       onChange={(e) => onChange(e.target.value === '__custom__' ? value : e.target.value)}
       style={selectStyle}
     >
-      {presets.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+      {ungrouped.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+      {grouped.map(g => (
+        <optgroup key={g.group} label={g.group}>
+          {g.items.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+        </optgroup>
+      ))}
       {isCustom && <option value="__custom__">Custom: {value}</option>}
     </select>
   );
