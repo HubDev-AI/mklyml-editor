@@ -4,11 +4,33 @@ import { useEditorStore } from '../store/editor-store';
 import { detectTarget, extractBlockType, findSourceLine, resolveInlineElement } from './target-detect';
 
 export const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
+export const STYLE_SELECTED_ATTR = 'data-mkly-style-selected';
 
 export const STYLE_PICK_CSS = [
   '[data-mkly-style-hover]{outline:2px dashed rgba(226,114,91,0.7)!important;outline-offset:2px;cursor:pointer!important}',
+  `[${STYLE_SELECTED_ATTR}]{outline:2px solid rgba(226,114,91,0.95)!important;outline-offset:2px}`,
   'body.mkly-style-pick *{cursor:crosshair!important}',
 ].join('\n');
+
+let styleSelectionSeq = 0;
+
+function nextStyleSelectionId(): string {
+  styleSelectionSeq += 1;
+  return `mkly-sel-${styleSelectionSeq}`;
+}
+
+export function clearStylePickSelection(doc: Document): void {
+  doc.querySelectorAll(`[${STYLE_SELECTED_ATTR}]`).forEach((el) =>
+    el.removeAttribute(STYLE_SELECTED_ATTR));
+}
+
+function findStyleSelectionElement(doc: Document, selectionId: string): Element | null {
+  const candidates = doc.querySelectorAll(`[${STYLE_SELECTED_ATTR}]`);
+  for (const el of candidates) {
+    if (el.getAttribute(STYLE_SELECTED_ATTR) === selectionId) return el;
+  }
+  return null;
+}
 
 /**
  * Find a specific sub-element within a block for style pick highlighting.
@@ -29,13 +51,56 @@ function findStyleTargetElement(blockEl: Element, blockType: string, target: str
       const all = blockEl.querySelectorAll(tag);
       return all[targetIndex] ?? null;
     }
-    return blockEl.querySelector(tag);
+    return null;
   }
 
   // BEM sub-element: link, img, body, etc.
   const sub = target.includes(':') ? target.split(':')[0] : target;
   const baseClass = `mkly-${blockType.replace('/', '-')}`;
   return blockEl.querySelector(`.${baseClass}__${sub}`);
+}
+
+function resolveStyleSelectionElement(
+  clicked: Element,
+  blockEl: HTMLElement,
+  blockType: string,
+  target: string,
+  targetIndex?: number,
+): Element | null {
+  if (target === 'self' || target.startsWith('self:')) return blockEl;
+
+  if (target.startsWith('>.')) {
+    const className = target.slice(2);
+    let el: Element | null = clicked;
+    while (el && el !== blockEl) {
+      if (el.classList.contains(className)) return el;
+      el = el.parentElement;
+    }
+    return blockEl.classList.contains(className) ? blockEl : null;
+  }
+
+  if (target.startsWith('>')) {
+    const tag = target.slice(1).toLowerCase();
+    const resolved = resolveInlineElement(clicked, blockEl);
+    if (resolved !== blockEl && resolved.tagName.toLowerCase() === tag) {
+      return resolved;
+    }
+    if (targetIndex === undefined) return null;
+    const all = blockEl.querySelectorAll(tag);
+    return all[targetIndex] ?? null;
+  }
+
+  const baseClass = `mkly-${blockType.replace('/', '-')}`;
+  const sub = target.includes(':') ? target.split(':')[0] : target;
+  const targetClass = `${baseClass}__${sub}`;
+  let el: Element | null = clicked;
+  while (el && el !== blockEl) {
+    if ([...el.classList].some((cls) => cls === targetClass || cls.startsWith(targetClass + '--'))) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return null;
 }
 
 /**
@@ -50,7 +115,7 @@ export function syncActiveBlock(
   selfOrigin: FocusOrigin,
   focusIntent: FocusIntent,
   scrollLock: boolean,
-  styleTarget?: { blockType: string; target: string; targetIndex?: number } | null,
+  styleTarget?: { blockType: string; target: string; targetIndex?: number; selectionId?: string } | null,
 ) {
   doc.querySelectorAll('[data-mkly-active]').forEach((el) => el.removeAttribute('data-mkly-active'));
   if (activeBlockLine !== null) {
@@ -58,12 +123,12 @@ export function syncActiveBlock(
     if (el) {
       let highlightEl: Element = el;
       if (styleTarget) {
-        const sub = findStyleTargetElement(el, styleTarget.blockType, styleTarget.target, styleTarget.targetIndex);
-        if (sub) {
-          highlightEl = sub;
-        } else if (styleTarget.target !== 'self' && !styleTarget.target.startsWith('self:')) {
-          return;
-        }
+        const marked = styleTarget.selectionId
+          ? findStyleSelectionElement(doc, styleTarget.selectionId)
+          : null;
+        const sub = marked
+          ?? findStyleTargetElement(el, styleTarget.blockType, styleTarget.target, styleTarget.targetIndex);
+        if (sub) highlightEl = sub;
       }
       highlightEl.setAttribute('data-mkly-active', '');
       if (shouldScrollToBlock(focusOrigin, selfOrigin, focusIntent, scrollLock)) {
@@ -220,6 +285,12 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
       }
     }
 
+    const selectedEl = resolveStyleSelectionElement(clicked, block, blockType, target, targetIndex);
+    if (!selectedEl) return;
+    const selectionId = nextStyleSelectionId();
+    clearStylePickSelection(doc);
+    selectedEl.setAttribute(STYLE_SELECTED_ATTR, selectionId);
+
     // Label from BEM modifier class (e.g., mkly-core-card--hero → "hero")
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
     let label: string | undefined;
@@ -242,7 +313,7 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     const line = Number(block.dataset.mklyLine);
     const store = useEditorStore.getState();
     store.focusBlock(line, 'preview');
-    store.openStylePopup({ blockType, target, label, sourceLine: line, targetLine, targetIndex, anchorRect });
+    store.openStylePopup({ blockType, target, label, sourceLine: line, targetLine, targetIndex, selectionId, anchorRect });
   };
 
   doc.addEventListener('mousedown', handler, true);

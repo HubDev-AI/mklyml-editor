@@ -5,7 +5,7 @@ import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick, clearStylePickSelection } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 import { morphIframeContent } from './iframe-morph';
 
@@ -248,7 +248,14 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    const styleTarget = stylePopup ? { blockType: stylePopup.blockType, target: stylePopup.target, targetIndex: stylePopup.targetIndex } : null;
+    const styleTarget = stylePopup
+      ? {
+          blockType: stylePopup.blockType,
+          target: stylePopup.target,
+          targetIndex: stylePopup.targetIndex,
+          selectionId: stylePopup.selectionId,
+        }
+      : null;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock, styleTarget);
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
@@ -279,12 +286,20 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
         cleanupClick();
         if (doc.body) {
           setStylePickClass(doc, false);
+          clearStylePickSelection(doc);
           makeBlocksEditable(doc);
         }
       };
     }
+    clearStylePickSelection(doc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stylePickMode, html]);
+
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc || stylePopup) return;
+    clearStylePickSelection(doc);
+  }, [stylePopup]);
 
   return (
     <iframe

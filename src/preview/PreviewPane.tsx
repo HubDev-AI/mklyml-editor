@@ -6,7 +6,7 @@ import { EmptyState } from './EmptyState';
 import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick, clearStylePickSelection } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 import { morphIframeContent } from './iframe-morph';
 import { getErrorHint } from './error-hints';
@@ -39,7 +39,6 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
   const stylePickModeRef = useRef(stylePickMode);
   const initializedRef = useRef(false);
   const lastThemeRef = useRef(theme);
-  const blockClickCleanupRef = useRef<(() => void) | null>(null);
   stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
@@ -97,20 +96,11 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
       }
     });
 
-    // Ensure only one block click handler is active for the current iframe document.
-    blockClickCleanupRef.current?.();
-    blockClickCleanupRef.current = bindBlockClicks(doc, 'preview');
+    bindBlockClicks(doc, 'preview');
 
     requestAnimationFrame(() => setScrollLock(false));
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, outputMode, setScrollLock, theme]);
-
-  useEffect(() => {
-    return () => {
-      blockClickCleanupRef.current?.();
-      blockClickCleanupRef.current = null;
-    };
-  }, []);
 
   // Highlight active block in preview iframe (same logic as edit pane)
   useEffect(() => {
@@ -118,15 +108,19 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
     if (!iframeVisible) return;
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    const styleTarget = stylePopup ? { blockType: stylePopup.blockType, target: stylePopup.target, targetIndex: stylePopup.targetIndex } : null;
+    const styleTarget = stylePopup
+      ? {
+          blockType: stylePopup.blockType,
+          target: stylePopup.target,
+          targetIndex: stylePopup.targetIndex,
+          selectionId: stylePopup.selectionId,
+        }
+      : null;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock, styleTarget);
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-    // html dep: after recompilation morphs the iframe, re-sync the highlight on the
-    // updated DOM. Without this, focusBlock() called before compile finishes can
-    // leave data-mkly-active on a stale/morphed element (wrong specific target).
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup, html]);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup]);
 
   // Style pick mode: toggle hover/click handlers in preview iframe
   useEffect(() => {
@@ -145,7 +139,14 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
         if (doc.body) setStylePickClass(doc, false);
       };
     }
+    clearStylePickSelection(doc);
   }, [stylePickMode, html]);
+
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc || stylePopup) return;
+    clearStylePickSelection(doc);
+  }, [stylePopup]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);

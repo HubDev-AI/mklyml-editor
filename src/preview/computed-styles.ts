@@ -5,6 +5,7 @@
  * When `styleTarget` is provided, queries the specific sub-element within the block
  * (e.g., the link, image, or Nth list item) instead of the block root.
  */
+import { STYLE_SELECTED_ATTR } from './iframe-highlight';
 
 const QUERIED_PROPS = [
   'color', 'backgroundColor',
@@ -22,6 +23,7 @@ interface StyleTarget {
   blockType: string;
   target: string;
   targetIndex?: number;
+  selectionId?: string;
 }
 
 export function queryComputedStyles(
@@ -76,7 +78,14 @@ function collapseBox(r: Record<string, string>, top: string, right: string, bott
 }
 
 function findSubElement(blockEl: Element, styleTarget: StyleTarget): Element | null {
-  const { blockType, target, targetIndex } = styleTarget;
+  const { blockType, target, targetIndex, selectionId } = styleTarget;
+
+  if (selectionId) {
+    const selected = blockEl.ownerDocument.querySelectorAll(`[${STYLE_SELECTED_ATTR}]`);
+    for (const el of selected) {
+      if (el.getAttribute(STYLE_SELECTED_ATTR) === selectionId) return el;
+    }
+  }
 
   // Class target: >.s1
   if (target.startsWith('>.')) {
@@ -90,7 +99,7 @@ function findSubElement(blockEl: Element, styleTarget: StyleTarget): Element | n
       const all = blockEl.querySelectorAll(tag);
       return all[targetIndex] ?? null;
     }
-    return blockEl.querySelector(tag);
+    return null;
   }
 
   // BEM sub-element: link, img, body, etc.

@@ -3,6 +3,12 @@ import type { ParseError, CompileError, SourceMapEntry, StyleGraph } from '@mkly
 import { resolveBlockLine } from './selection-orchestrator';
 import type { UndoInfo } from './undo-manager';
 
+declare global {
+  interface Window {
+    __editorStore?: unknown;
+  }
+}
+
 type OutputMode = 'web' | 'email';
 type ViewMode = 'preview' | 'edit' | 'html';
 type Theme = 'light' | 'dark';
@@ -80,6 +86,7 @@ interface EditorState {
     sourceLine: number;    // block's source line — used for cursor adjustment after style changes
     targetLine?: number;   // content element's source line — for deferred class injection
     targetIndex?: number;  // index among same-tag siblings (e.g., 2nd <li> → 1)
+    selectionId?: string;  // strict style-pick selection marker (authoritative target identity)
     anchorRect: { x: number; y: number; width: number; height: number };
   } | null;
 
@@ -408,7 +415,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
 // Expose store on window for E2E tests
 if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e')) {
-  (window as unknown as Record<string, unknown>).__editorStore = useEditorStore;
+  window.__editorStore = useEditorStore;
 }
 
 export type { FocusOrigin, FocusIntent, SelectionState };
