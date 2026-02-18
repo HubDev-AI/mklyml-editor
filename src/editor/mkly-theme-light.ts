@@ -117,6 +117,9 @@ const lightEditorTheme = EditorView.theme({
     fontWeight: '700',
     transition: 'opacity 0.15s',
     userSelect: 'none',
+    position: 'relative',
+    top: '-3px',
+    right: '-2px',
   },
   '.mkly-delete-gutter .cm-gutterElement.mkly-line-hover .mkly-block-delete-btn': {
     opacity: '0.25',

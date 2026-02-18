@@ -37,12 +37,20 @@ export function StatusBar() {
       <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{outputMode}</span>
 
       {errorCount > 0 && (
-        <span style={{ color: 'var(--ed-error-text)' }}>
+        <span
+          style={{ color: 'var(--ed-error-text)', cursor: 'pointer' }}
+          onClick={() => document.querySelector('[data-error-panel]')?.scrollIntoView({ behavior: 'smooth' })}
+          title="Jump to errors"
+        >
           {errorCount} {errorCount === 1 ? 'error' : 'errors'}
         </span>
       )}
       {warnCount > 0 && (
-        <span style={{ color: 'var(--ed-warning-text)' }}>
+        <span
+          style={{ color: 'var(--ed-warning-text)', cursor: 'pointer' }}
+          onClick={() => document.querySelector('[data-error-panel]')?.scrollIntoView({ behavior: 'smooth' })}
+          title="Jump to warnings"
+        >
           {warnCount} {warnCount === 1 ? 'warning' : 'warnings'}
         </span>
       )}

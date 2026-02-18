@@ -57,19 +57,14 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
     initializedRef.current = true;
 
-    const isStylePick = stylePickModeRef.current;
-
-    requestAnimationFrame(() => {
-      if (isStylePick) {
-        setStylePickClass(doc, true);
-        doc.querySelectorAll('[contenteditable]').forEach(el =>
-          el.setAttribute('contenteditable', 'false'));
-        bindStylePickHover(doc);
-        bindStylePickClick(doc, iframe);
-      } else {
+    // Style pick handlers are managed exclusively by the useEffect([stylePickMode, html])
+    // below, which re-runs after every iframe rewrite. Don't bind them here to avoid
+    // orphaned handlers that survive after style pick mode is toggled off.
+    if (!stylePickModeRef.current) {
+      requestAnimationFrame(() => {
         makeBlocksEditable(doc);
-      }
-    });
+      });
+    }
 
     doc.body.addEventListener('input', () => handleInputRef.current());
     doc.addEventListener('click', (e: MouseEvent) => {
@@ -193,6 +188,22 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
           if (line !== null) {
             useEditorStore.getState().focusBlock(line, 'edit', 'recompile');
           }
+        } else {
+          // User typed outside any existing block — focus the newly created block.
+          // The reverse engine wraps orphaned text in core/html; find the last
+          // content block in the new source (most likely the one just created).
+          const srcLines = source.split('\n');
+          let lastBlockLine: number | null = null;
+          for (let i = 0; i < srcLines.length; i++) {
+            const t = srcLines[i].trim();
+            const m = t.match(/^---\s+([\w/]+)/);
+            if (m && !t.startsWith('--- /') && !['use', 'meta', 'theme', 'preset', 'style'].includes(m[1])) {
+              lastBlockLine = i + 1;
+            }
+          }
+          if (lastBlockLine !== null) {
+            useEditorStore.getState().focusBlock(lastBlockLine, 'edit', 'recompile');
+          }
         }
       } else {
         const compiledHtml = cleanHtmlForReverse(
@@ -240,9 +251,15 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup]);
+    // html dep: after recompilation morphs the iframe, re-sync the highlight on the
+    // updated DOM. Without this, focusBlock() called before compile finishes would
+    // highlight the wrong block (stale line numbers) and the morph would preserve it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup, html]);
 
-  // Style pick mode: handle toggle (when no iframe rewrite occurred).
+  // Style pick mode: bind/unbind hover and click handlers.
+  // Depends on `html` so handlers are re-bound after every iframe morph/rewrite,
+  // ensuring they reference the live document and are properly cleaned up.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -265,7 +282,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stylePickMode]);
+  }, [stylePickMode, html]);
 
   return (
     <iframe

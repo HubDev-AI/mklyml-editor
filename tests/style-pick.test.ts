@@ -7,6 +7,7 @@ import {
   generateBlockLabel,
   injectBlockLabel,
   findSourceLine,
+  resolveInlineElement,
 } from '../src/preview/target-detect';
 import { Window } from 'happy-dom';
 
@@ -102,6 +103,117 @@ describe('detectTarget', () => {
     const unstyled = doc.querySelectorAll('li')[1]!;
     expect(detectTarget(styled, block)).toBe('>.s1');
     expect(detectTarget(unstyled, block)).toBe('>li');
+  });
+
+  it('resolves <strong> inside <p> to >p', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <p><strong>Bold text</strong></p>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const strong = doc.querySelector('strong')!;
+    expect(detectTarget(strong, block)).toBe('>p');
+  });
+
+  it('resolves <a> inside <li> to >li', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <ul><li><a href="#">Link</a></li></ul>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const a = doc.querySelector('a')!;
+    expect(detectTarget(a, block)).toBe('>li');
+  });
+
+  it('resolves <code> inside <p> to >p', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <p>Some <code>inline code</code> here</p>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const code = doc.querySelector('code')!;
+    expect(detectTarget(code, block)).toBe('>p');
+  });
+
+  it('does not resolve <p> — already block-level', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <p>Paragraph</p>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const p = doc.querySelector('p')!;
+    expect(detectTarget(p, block)).toBe('>p');
+  });
+
+  it('resolves <em> inside <li class="s1"> to >.s1', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <ul><li class="s1"><em>Italic</em></li></ul>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const em = doc.querySelector('em')!;
+    expect(detectTarget(em, block)).toBe('>.s1');
+  });
+
+  it('resolves nested inline (em inside strong) to parent block', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <p><strong><em>Bold italic</em></strong></p>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const em = doc.querySelector('em')!;
+    expect(detectTarget(em, block)).toBe('>p');
+  });
+
+  it('resolves inline element to "self" when only wrappers above', () => {
+    const doc = createDoc(`
+      <div class="mkly-core-text" data-mkly-id="core/text:1">
+        <span>Direct inline</span>
+      </div>
+    `);
+    const block = doc.querySelector('[data-mkly-id]')!;
+    const span = doc.querySelector('span')!;
+    expect(detectTarget(span, block)).toBe('self');
+  });
+});
+
+// ===== resolveInlineElement =====
+
+describe('resolveInlineElement', () => {
+  it('returns the same element for block-level tags', () => {
+    const doc = createDoc('<div id="root"><p>Text</p></div>');
+    const root = doc.querySelector('#root')!;
+    const p = doc.querySelector('p')!;
+    expect(resolveInlineElement(p, root)).toBe(p);
+  });
+
+  it('walks up from inline to block-level parent', () => {
+    const doc = createDoc('<div id="root"><p><strong>Bold</strong></p></div>');
+    const root = doc.querySelector('#root')!;
+    const strong = doc.querySelector('strong')!;
+    const p = doc.querySelector('p')!;
+    expect(resolveInlineElement(strong, root)).toBe(p);
+  });
+
+  it('walks through multiple inline levels', () => {
+    const doc = createDoc('<div id="root"><li><a><em>Text</em></a></li></div>');
+    const root = doc.querySelector('#root')!;
+    const em = doc.querySelector('em')!;
+    const li = doc.querySelector('li')!;
+    expect(resolveInlineElement(em, root)).toBe(li);
+  });
+
+  it('stops at root and returns root', () => {
+    const doc = createDoc('<div id="root"><span>Direct</span></div>');
+    const root = doc.querySelector('#root')!;
+    const span = doc.querySelector('span')!;
+    expect(resolveInlineElement(span, root)).toBe(root);
   });
 });
 

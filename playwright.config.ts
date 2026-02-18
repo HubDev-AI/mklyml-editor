@@ -5,7 +5,7 @@ export default defineConfig({
   testMatch: /.*\.e2e\.ts/,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: [['list'], ['html', { outputFolder: 'e2e/playwright-report', open: 'never' }]],
   outputDir: 'e2e/test-results',

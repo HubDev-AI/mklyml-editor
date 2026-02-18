@@ -1,7 +1,7 @@
 import { findBlockElement, shouldScrollToBlock } from '../store/selection-orchestrator';
 import type { FocusOrigin, FocusIntent } from '../store/editor-store';
 import { useEditorStore } from '../store/editor-store';
-import { detectTarget, extractBlockType, findSourceLine } from './target-detect';
+import { detectTarget, extractBlockType, findSourceLine, resolveInlineElement } from './target-detect';
 
 export const ACTIVE_BLOCK_CSS = '[data-mkly-active]{outline:2px solid rgba(59,130,246,0.5);outline-offset:2px;transition:outline 0.15s}';
 
@@ -134,11 +134,14 @@ export function bindStylePickHover(doc: Document): () => void {
         el = el.parentElement;
       }
     }
-    // For non-BEM elements, highlight the actual element if it's a meaningful tag
+    // For non-BEM elements, resolve inline tags to block-level parent and highlight
     if (!foundBEM && target !== block) {
-      const tag = target.tagName.toLowerCase();
-      if (tag !== 'div' && tag !== 'section' && tag !== 'article' && tag !== 'main') {
-        hoverEl = target;
+      const resolved = resolveInlineElement(target, block);
+      if (resolved !== block) {
+        const tag = resolved.tagName.toLowerCase();
+        if (tag !== 'div' && tag !== 'section' && tag !== 'article' && tag !== 'main') {
+          hoverEl = resolved;
+        }
       }
     }
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { ColorPicker } from './style-controls/ColorPicker';
 import { SpacingControl } from './style-controls/SpacingControl';
 import { AlignmentButtons } from './style-controls/AlignmentButtons';
@@ -187,15 +187,33 @@ function TabButton({ label, value, active, onClick, dot, title }: {
   );
 }
 
-function SectorPanel({ sector, children }: { sector: StyleSector; children: React.ReactNode }) {
+const EXPANDED_BY_DEFAULT = new Set(['Typography', 'Background']);
+
+function SectorPanel({ sector, children }: { sector: StyleSector; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(EXPANDED_BY_DEFAULT.has(sector.label));
+
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ed-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          width: '100%', padding: 0, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          fontSize: 10, fontWeight: 600, color: 'var(--ed-text-muted)',
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+          marginBottom: expanded ? 6 : 0,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        <span style={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', fontSize: 8 }}>&#9660;</span>
         {sector.label}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {children}
-      </div>
+      </button>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }

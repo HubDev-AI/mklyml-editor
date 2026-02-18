@@ -1,16 +1,36 @@
+/** HTML tags considered inline — clicking these resolves to their block-level parent. */
+export const INLINE_TAGS = new Set([
+  'strong', 'em', 'a', 'span', 'code', 'sub', 'sup',
+  'mark', 'small', 'b', 'i', 'u', 'abbr', 'del', 'ins', 'br',
+]);
+
+/**
+ * Walk up from an inline element to the nearest block-level ancestor
+ * within the given root. Returns the element unchanged if it's not inline.
+ */
+export function resolveInlineElement(el: Element, root: Element): Element {
+  let current = el;
+  while (current !== root && INLINE_TAGS.has(current.tagName.toLowerCase())) {
+    if (current.parentElement) current = current.parentElement;
+    else break;
+  }
+  return current;
+}
+
 /**
  * Detect the target name from a clicked element within a block.
  *
  * Priority:
- * 1. Style class annotation (e.g., class="s1" → ">.s1")
- * 2. BEM `__target` class (e.g., mkly-core-card__img → "img")
- * 3. If clicked element IS the block root → "self"
- * 4. Tag-name fallback → ">p", ">h2", etc.
+ * 1. Style class annotation on clicked element (e.g., class="s1" → ">.s1")
+ * 2. BEM `__target` class (e.g., mkly-core-card__img → "img") — walks up from clicked
+ * 3. Resolve inline elements (strong, em, a, span, etc.) to block-level parent
+ * 4. Style class annotation on resolved parent (e.g., <em> inside <li class="s1">)
+ * 5. Tag-name fallback → ">p", ">h2", etc.
  */
 export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   if (clickedEl === blockRootEl) return 'self';
 
-  // Check for style class annotation (injected by class-injection system)
+  // Check for style class annotation on the clicked element itself
   const styleClass = [...clickedEl.classList].find(c => /^s\d+$/.test(c));
   if (styleClass) return `>.${styleClass}`;
 
@@ -32,9 +52,16 @@ export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
     }
   }
 
-  // No BEM class found — return "self" for generic wrapper elements,
-  // or ">tag" for specific elements (class will be injected on first style change).
-  const tag = clickedEl.tagName.toLowerCase();
+  // No BEM/class found — resolve inline elements to block-level parent
+  const resolved = resolveInlineElement(clickedEl, blockRootEl);
+  if (resolved === blockRootEl) return 'self';
+
+  // Check for style class on the resolved parent (e.g., <em> inside <li class="s1">)
+  const resolvedStyleClass = [...resolved.classList].find(c => /^s\d+$/.test(c));
+  if (resolvedStyleClass) return `>.${resolvedStyleClass}`;
+
+  // Tag-name fallback — "self" for generic wrappers, ">tag" for content elements
+  const tag = resolved.tagName.toLowerCase();
   if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main') {
     return 'self';
   }
