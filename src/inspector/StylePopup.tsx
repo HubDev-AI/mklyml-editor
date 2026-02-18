@@ -3,21 +3,14 @@ import { createPortal } from 'react-dom';
 import { StyleEditor } from './StyleEditor';
 import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
-import { applyStyleChange } from '../store/block-properties';
-import {
-  generateStyleClass,
-  injectClassAnnotation,
-  injectHtmlClassAttribute,
-  generateBlockLabel,
-  injectBlockLabel,
-  findBlockLineByTypeAndLabel,
-  findBlockOccurrenceAtLine,
-  findBlockLineByTypeAndOccurrence,
-} from '../preview/target-detect';
+import { adjustLineForStylePatch, applyStyleChange } from '../store/block-properties';
+import { resolveBlockLine } from '../store/selection-orchestrator';
+import { findSourceLine, generateStyleClass, injectClassAnnotation, injectHtmlClassAttribute, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
 import { getBlockDisplayName } from '@mklyml/core';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
 import type { CompletionData } from '@mklyml/core';
+import { STYLE_SELECTED_ATTR } from '../preview/iframe-highlight';
 
 interface StylePopupProps {
   completionData: CompletionData;
@@ -36,14 +29,61 @@ function formatTagTarget(target: string): string {
   return `<${raw}>`;
 }
 
+function clampLine(line: number, source: string): number {
+  const total = source.split('\n').length;
+  return Math.max(1, Math.min(line, total));
+}
+
+function findLiveStyleSelection(selectionId: string, target: string): {
+  blockLine: number;
+  targetLine?: number;
+  targetIndex?: number;
+} | null {
+  const iframes = document.querySelectorAll('iframe');
+  for (const iframeEl of iframes) {
+    const doc = (iframeEl as HTMLIFrameElement).contentDocument;
+    if (!doc) continue;
+
+    let selectedEl: Element | null = null;
+    for (const candidate of doc.querySelectorAll(`[${STYLE_SELECTED_ATTR}]`)) {
+      if (candidate.getAttribute(STYLE_SELECTED_ATTR) === selectionId) {
+        selectedEl = candidate;
+        break;
+      }
+    }
+    if (!selectedEl) continue;
+
+    const blockEl = selectedEl.closest<HTMLElement>('[data-mkly-id][data-mkly-line]');
+    if (!blockEl?.dataset.mklyLine) continue;
+
+    const blockLine = Number(blockEl.dataset.mklyLine);
+    const snapshot: { blockLine: number; targetLine?: number; targetIndex?: number } = { blockLine };
+
+    if (/^>[a-z]/.test(target)) {
+      const sl = findSourceLine(selectedEl, blockEl);
+      if (!sl) return null;
+      snapshot.targetLine = sl.lineNum;
+
+      const tag = target.slice(1);
+      const all = blockEl.querySelectorAll(tag);
+      for (let i = 0; i < all.length; i++) {
+        if (all[i] === selectedEl || all[i].contains(selectedEl)) {
+          snapshot.targetIndex = i;
+          break;
+        }
+      }
+    }
+
+    return snapshot;
+  }
+  return null;
+}
+
 export function StylePopup({ completionData }: StylePopupProps) {
   const popup = useEditorStore((s) => s.stylePopup);
   const closeStylePopup = useEditorStore((s) => s.closeStylePopup);
   const styleGraph = useEditorStore((s) => s.styleGraph);
   const computedStyles = useEditorStore((s) => s.computedStyles);
-  const setSource = useEditorStore((s) => s.setSource);
-  const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
-  const focusBlock = useEditorStore((s) => s.focusBlock);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -134,52 +174,67 @@ export function StylePopup({ completionData }: StylePopupProps) {
     let workingSource = useEditorStore.getState().source;
     const currentGraph = useEditorStore.getState().styleGraph;
     const popupData = useEditorStore.getState().stylePopup;
-    const blockLine = popupData?.sourceLine ?? useEditorStore.getState().cursorLine;
-    const originalLabel = popupData?.label ?? label;
+    let blockLine = popupData?.sourceLine ?? useEditorStore.getState().cursorLine;
     let workingTarget = target;
     let workingLabel = label;
-    let nextPopup = popupData ? { ...popupData } : null;
-    let popupChanged = false;
-    const originalOccurrence = findBlockOccurrenceAtLine(workingSource, blockType, blockLine, originalLabel);
+    let workingTargetLine = popupData?.targetLine;
+    const nextPopup = popupData ? { ...popupData } : null;
+
+    if (popupData?.selectionId) {
+      const liveSelection = findLiveStyleSelection(popupData.selectionId, popupData.target);
+      if (!liveSelection) {
+        console.warn('[mkly-style] Missing style selection marker, aborting style update.');
+        return;
+      }
+      blockLine = liveSelection.blockLine;
+      workingTargetLine = liveSelection.targetLine;
+      if (nextPopup) {
+        nextPopup.sourceLine = liveSelection.blockLine;
+        if (liveSelection.targetIndex !== undefined) {
+          nextPopup.targetIndex = liveSelection.targetIndex;
+        }
+      }
+    }
 
     // Plain tag target (">li", ">p") without class — inject class on first style change.
     // For verbatim blocks (core/html), inject class="sN" into the HTML tag directly.
     // For other blocks, inject {.sN} mkly annotation.
-    if (/^>[a-z]/.test(workingTarget) && popupData?.targetLine !== undefined) {
+    if (/^>[a-z]/.test(workingTarget)) {
+      if (workingTargetLine === undefined) {
+        console.warn('[mkly-style] Missing target line for tag selector, aborting style update.');
+        return;
+      }
       const className = generateStyleClass(workingSource);
       const isVerbatim = completionData.contentModes.get(blockType) === 'verbatim';
       const injected = isVerbatim
-        ? injectHtmlClassAttribute(workingSource, popupData.targetLine, className, popupData.sourceLine)
-        : injectClassAnnotation(workingSource, popupData.targetLine, className, popupData.sourceLine);
+        ? injectHtmlClassAttribute(workingSource, workingTargetLine, className)
+        : injectClassAnnotation(workingSource, workingTargetLine, className);
       if (injected) {
         workingSource = injected;
         workingTarget = `>.${className}`;
+        // Persist class target in popup state for subsequent edits.
         if (nextPopup) {
           nextPopup.target = workingTarget;
           nextPopup.targetLine = undefined;
-          nextPopup.targetIndex = undefined;
-          popupChanged = true;
         }
       }
     }
 
-    // No label yet — auto-assign a block label so the style only applies to this
-    // specific block instance, not all blocks of the same type. This applies to ALL
-    // targets in style pick mode (self, BEM, tag), ensuring per-instance scoping.
-    if (!workingLabel && popupData) {
+    // No label yet — auto-assign a block label so style applies to this instance.
+    // Skip class targets (>.sN): the injected class is already unique and scoped.
+    // This avoids noisy double-tagging like block ": s1" + content "{.s1}".
+    if (!workingLabel && popupData && !workingTarget.startsWith('>.')) {
       const newLabel = generateBlockLabel(workingSource);
-      const labeled = injectBlockLabel(workingSource, popupData.sourceLine, newLabel);
+      const labeled = injectBlockLabel(workingSource, blockLine, newLabel);
       if (labeled) {
         workingSource = labeled;
         workingLabel = newLabel;
-        if (nextPopup) {
-          nextPopup.label = newLabel;
-          popupChanged = true;
-        }
+        // Persist generated label in popup state for subsequent edits.
+        if (nextPopup) nextPopup.label = newLabel;
       }
     }
 
-    const { newSource, newGraph } = applyStyleChange(
+    const { newSource, newGraph, lineDelta, lineShiftFrom } = applyStyleChange(
       workingSource,
       currentGraph,
       blockType,
@@ -189,28 +244,40 @@ export function StylePopup({ completionData }: StylePopupProps) {
       workingLabel,
     );
 
-    const resolvedLine = workingLabel
-      ? findBlockLineByTypeAndLabel(newSource, blockType, workingLabel)
-      : (originalOccurrence !== null
-          ? findBlockLineByTypeAndOccurrence(newSource, blockType, originalOccurrence, originalLabel)
-          : null);
-    setStyleGraph(newGraph);
-    setSource(newSource);
-    if (resolvedLine !== null) {
-      focusBlock(resolvedLine, 'inspector', 'edit-property');
-    }
+    const adjustedLine = adjustLineForStylePatch(blockLine, lineDelta, lineShiftFrom);
 
-    // Keep popup in sync so subsequent changes keep targeting the same element instance.
-    if (nextPopup) {
-      if (resolvedLine !== null && resolvedLine !== blockLine) {
-        nextPopup.sourceLine = resolvedLine;
-        popupChanged = true;
-      }
-      if (popupChanged) {
-        useEditorStore.getState().openStylePopup(nextPopup);
-      }
-    }
-  }, [setSource, setStyleGraph, focusBlock]);
+    // Apply source + focus atomically so selection/target state does not flicker
+    // between source rewrite and cursor remap.
+    useEditorStore.setState((state) => {
+      const remappedLine = clampLine(adjustedLine, newSource);
+      const { blockLine: nextBlockLine, blockType: nextBlockType } = resolveBlockLine(remappedLine, newSource);
+      const popupToKeep = nextPopup ?? state.stylePopup;
+      return {
+        source: newSource,
+        styleGraph: newGraph,
+        cursorLine: remappedLine,
+        activeBlockLine: nextBlockLine,
+        selection: {
+          blockLine: nextBlockLine,
+          blockType: nextBlockType,
+          propertyKey: state.selection.propertyKey,
+          contentRange: null,
+        },
+        focusOrigin: 'inspector',
+        focusVersion: state.focusVersion + 1,
+        focusIntent: 'edit-property' as const,
+        stylePopup: popupToKeep
+          ? {
+              ...popupToKeep,
+              sourceLine: remappedLine,
+              targetLine: popupToKeep.targetLine !== undefined
+                ? adjustLineForStylePatch(popupToKeep.targetLine, lineDelta, lineShiftFrom)
+                : popupToKeep.targetLine,
+            }
+          : popupToKeep,
+      };
+    });
+  }, [completionData]);
 
   if (!popup) return null;
 

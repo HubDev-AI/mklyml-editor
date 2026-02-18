@@ -1,7 +1,8 @@
 import { htmlToMkly, CORE_KIT } from '@mklyml/core';
+import type { MklyKit } from '@mklyml/core';
 import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 
-export const MKLY_KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
+export const MKLY_KITS: Record<string, MklyKit> = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
 
 const SKIP_BLOCK_TYPES = new Set(['use', 'meta', 'theme', 'preset', 'style']);
 

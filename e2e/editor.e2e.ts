@@ -1602,6 +1602,251 @@ test.describe('Style Pick Full Workflow', () => {
     // Should have Self tab for the button wrapper
     await expect(popup.getByRole('button', { name: 'Self', exact: true })).toBeVisible({ timeout: 3000 });
   });
+
+  test('style pick keeps class target stable across consecutive style edits', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- meta',
+      'version: 1',
+      '',
+      '--- newsletter/tipOfTheDay',
+      'title: Pro Tip',
+      'First paragraph in tip block.',
+      '',
+      'Second paragraph that should stay selected.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    // Enable style pick
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    // Click the second paragraph in tipOfTheDay (plain tag target: >p)
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-tipOfTheDay p').nth(1).click();
+    await page.waitForTimeout(500);
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+
+    // Expand layout sector and set text alignment to center (first style edit)
+    const centerBtn = popup.locator('button[title="center"]').first();
+    if (!(await centerBtn.isVisible())) {
+      await popup.getByRole('button', { name: /layout/i }).first().click();
+      await expect(centerBtn).toBeVisible({ timeout: 3000 });
+    }
+    await centerBtn.click();
+    await page.waitForTimeout(600);
+
+    const firstPopupState = await page.evaluate(() => {
+      // @ts-ignore
+      const store = window.__editorStore;
+      // @ts-ignore
+      return store?.getState()?.stylePopup ?? null;
+    });
+
+    expect(firstPopupState?.target).toMatch(/^>\.s\d+$/);
+    const classTarget = firstPopupState.target as string;
+    const className = classTarget.slice(2);
+    const classAnnotationPattern = new RegExp(`\\{\\.${className}\\}`, 'g');
+
+    const sourceAfterFirstEdit = await getSource(page);
+    expect((sourceAfterFirstEdit.match(classAnnotationPattern) ?? []).length).toBe(1);
+    expect(sourceAfterFirstEdit).not.toMatch(/^---\s+newsletter\/tipOfTheDay:\s/m);
+
+    // Second style edit should keep the same class target (no reinjection to wrong line/block)
+    await popup.locator('button[title="right"]').first().click();
+    await page.waitForTimeout(600);
+
+    const secondPopupState = await page.evaluate(() => {
+      // @ts-ignore
+      const store = window.__editorStore;
+      // @ts-ignore
+      return store?.getState()?.stylePopup ?? null;
+    });
+
+    expect(secondPopupState?.target).toBe(classTarget);
+
+    const sourceAfterSecondEdit = await getSource(page);
+    expect((sourceAfterSecondEdit.match(classAnnotationPattern) ?? []).length).toBe(1);
+    expect(sourceAfterSecondEdit).not.toMatch(/^---\s+newsletter\/tipOfTheDay.*\{\.[^\}]+\}\s*$/m);
+  });
+
+  test('style pick target stays stable when style block is below selected block', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- meta',
+      'version: 1',
+      '',
+      '--- newsletter/tipOfTheDay',
+      'title: Pro Tip',
+      'First paragraph in tip block.',
+      '',
+      'Second paragraph that should stay selected.',
+      '',
+      '--- style',
+      'core/heading',
+      '  color: #111111',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-tipOfTheDay p').nth(1).click();
+    await page.waitForTimeout(500);
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+
+    const centerBtn = popup.locator('button[title="center"]').first();
+    if (!(await centerBtn.isVisible())) {
+      await popup.getByRole('button', { name: /layout/i }).first().click();
+      await expect(centerBtn).toBeVisible({ timeout: 3000 });
+    }
+    await centerBtn.click();
+    await page.waitForTimeout(600);
+
+    const firstPopupState = await page.evaluate(() => {
+      // @ts-ignore
+      const store = window.__editorStore;
+      // @ts-ignore
+      return store?.getState()?.stylePopup ?? null;
+    });
+    expect(firstPopupState?.target).toMatch(/^>\.s\d+$/);
+    const classTarget = firstPopupState.target as string;
+
+    await popup.locator('button[title="right"]').first().click();
+    await page.waitForTimeout(600);
+
+    const secondPopupState = await page.evaluate(() => {
+      // @ts-ignore
+      const store = window.__editorStore;
+      // @ts-ignore
+      return store?.getState()?.stylePopup ?? null;
+    });
+    expect(secondPopupState?.target).toBe(classTarget);
+  });
+
+  test('style pick on recommendations list item injects class without auto-labeling block', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/recommendations',
+      'title: Weekend Reads',
+      '',
+      '- [Read 1](https://example.com/read-1) — First item',
+      '- [Read 2](https://example.com/read-2) — Second item',
+      '- [Read 3](https://example.com/read-3) — Third item',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-recommendations li').nth(1).click();
+    await page.waitForTimeout(500);
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+
+    const centerBtn = popup.locator('button[title="center"]').first();
+    if (!(await centerBtn.isVisible())) {
+      await popup.getByRole('button', { name: /layout/i }).first().click();
+      await expect(centerBtn).toBeVisible({ timeout: 3000 });
+    }
+    await centerBtn.click();
+    await page.waitForTimeout(600);
+
+    const popupState = await page.evaluate(() => {
+      // @ts-ignore
+      const store = window.__editorStore;
+      // @ts-ignore
+      return store?.getState()?.stylePopup ?? null;
+    });
+
+    expect(popupState?.target).toMatch(/^>\.s\d+$/);
+
+    const nextSource = await getSource(page);
+    expect(nextSource).toMatch(/\{\.s\d+\}/);
+    expect(nextSource).not.toMatch(/^---\s+newsletter\/recommendations:\s/m);
+  });
+
+  test('style pick keeps same DOM target for labeled recommendations with existing s1 class', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/recommendations: s1',
+      'title: Weekend Reads',
+      '',
+      '- [Attention Is All You Need — Revisited](https://example.com/read-1) — A retrospective.',
+      '- [The Hidden Costs of Free AI APIs](https://example.com/read-2) — Rate limits and lock-in. {.s1}',
+      '- [Building AI Products](https://example.com/read-3) — Lessons.',
+      '',
+      '--- style',
+      'core/heading',
+      '  color: #111111',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-recommendations li.s1').first().click();
+    await page.waitForTimeout(500);
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+
+    const selectedIndexBefore = await frame.locator('.mkly-newsletter-recommendations li').evaluateAll((nodes) =>
+      nodes.findIndex((el) => el.hasAttribute('data-mkly-style-selected')));
+    expect(selectedIndexBefore).toBe(1);
+
+    const initialActiveTag = await frame.locator('[data-mkly-active]').first().evaluate((el) => el.tagName.toLowerCase());
+    expect(initialActiveTag).toBe('li');
+
+    const centerBtn = popup.locator('button[title="center"]').first();
+    if (!(await centerBtn.isVisible())) {
+      await popup.getByRole('button', { name: /layout/i }).first().click();
+      await expect(centerBtn).toBeVisible({ timeout: 3000 });
+    }
+    await centerBtn.click();
+    await page.waitForTimeout(700);
+
+    const selectedIndexAfterFirst = await frame.locator('.mkly-newsletter-recommendations li').evaluateAll((nodes) =>
+      nodes.findIndex((el) => el.hasAttribute('data-mkly-style-selected')));
+    expect(selectedIndexAfterFirst).toBe(1);
+
+    const afterFirstActiveTag = await frame.locator('[data-mkly-active]').first().evaluate((el) => el.tagName.toLowerCase());
+    expect(afterFirstActiveTag).toBe('li');
+
+    await popup.locator('button[title="right"]').first().click();
+    await page.waitForTimeout(700);
+
+    const selectedIndexAfterSecond = await frame.locator('.mkly-newsletter-recommendations li').evaluateAll((nodes) =>
+      nodes.findIndex((el) => el.hasAttribute('data-mkly-style-selected')));
+    expect(selectedIndexAfterSecond).toBe(1);
+
+    const afterSecondActiveTag = await frame.locator('[data-mkly-active]').first().evaluate((el) => el.tagName.toLowerCase());
+    expect(afterSecondActiveTag).toBe('li');
+  });
 });
 
 // ---------------------------------------------------------------------------

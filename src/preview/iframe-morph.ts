@@ -114,6 +114,11 @@ export function morphIframeContent(doc: Document, newHtml: string): boolean {
       if (fromEl.hasAttribute('data-mkly-style-hover')) {
         toEl.setAttribute('data-mkly-style-hover', '');
       }
+      // Preserve authoritative style selection marker across source recompiles.
+      const selectedId = fromEl.getAttribute('data-mkly-style-selected');
+      if (selectedId !== null) {
+        toEl.setAttribute('data-mkly-style-selected', selectedId);
+      }
       return true;
     },
   });
