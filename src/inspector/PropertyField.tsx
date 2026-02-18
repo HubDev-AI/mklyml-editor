@@ -117,6 +117,11 @@ function SelectField({ name, value, description, optional, options, onChange }: 
   return (
     <div style={{ padding: '0 14px', marginBottom: 10 }}>
       <FieldLabel name={name} optional={optional} />
+      {description && (
+        <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.7, marginTop: -2, marginBottom: 4 }}>
+          {description}
+        </div>
+      )}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -172,6 +177,11 @@ function NumberField({ name, value, description, optional, onChange }: BaseField
   return (
     <div style={{ padding: '0 14px', marginBottom: 10 }}>
       <FieldLabel name={name} optional={optional} />
+      {description && (
+        <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.7, marginTop: -2, marginBottom: 4 }}>
+          {description}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 4 }}>
         <input
           type="number"
@@ -260,6 +270,11 @@ function UrlField({ name, value, description, optional, onChange }: BaseFieldPro
   return (
     <div style={{ padding: '0 14px', marginBottom: 10 }}>
       <FieldLabel name={name} optional={optional} />
+      {description && (
+        <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.7, marginTop: -2, marginBottom: 4 }}>
+          {description}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 4 }}>
         <input
           type="url"
@@ -326,6 +341,11 @@ function TextField({ name, value, description, optional, onChange }: BaseFieldPr
   return (
     <div style={{ padding: '0 14px', marginBottom: 10 }}>
       <FieldLabel name={name} optional={optional} />
+      {description && (
+        <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.7, marginTop: -2, marginBottom: 4 }}>
+          {description}
+        </div>
+      )}
       <input
         className="liquid-glass-input"
         value={localValue}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { ColorPicker } from './style-controls/ColorPicker';
 import { SpacingControl } from './style-controls/SpacingControl';
 import { AlignmentButtons } from './style-controls/AlignmentButtons';
@@ -18,6 +18,8 @@ interface StyleEditorProps {
   targets?: Record<string, TargetInfo>;
   styleHints?: Record<string, string[]>;
   onStyleChange: (blockType: string, target: string, prop: string, value: string, label?: string) => void;
+  initialTab?: string;
+  defaultExpanded?: boolean;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -32,9 +34,13 @@ const inputStyle: React.CSSProperties = {
   fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
 };
 
-export function StyleEditor({ blockType, label, styleGraph, computedStyles, targets, styleHints, onStyleChange }: StyleEditorProps) {
-  const [collapsed, setCollapsed] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>('self');
+export function StyleEditor({ blockType, label, styleGraph, computedStyles, targets, styleHints, onStyleChange, initialTab, defaultExpanded }: StyleEditorProps) {
+  const [collapsed, setCollapsed] = useState(!defaultExpanded);
+  const [activeTab, setActiveTab] = useState<string>(initialTab ?? 'self');
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   const setStyle = useCallback((prop: string, value: string) => {
     onStyleChange(blockType, activeTab, prop, value, label);
@@ -56,8 +62,12 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
       ? TARGET_SECTORS
       : DEFAULT_SELF_SECTORS;
 
-  // Filter sectors by styleHints (if provided)
-  const allowedProps = styleHints?.[activeTab] ?? styleHints?.['self'];
+  // Filter sectors by styleHints (if provided).
+  // Tag targets (">p", ">h1") skip filtering — they're ad-hoc and need all properties.
+  const isTagTarget = activeTab.startsWith('>');
+  const allowedProps = isTagTarget
+    ? (styleHints?.['>'] ?? undefined)
+    : (styleHints?.[activeTab] ?? styleHints?.['self']);
   const sectors = allowedProps
     ? filterSectors(rawSectors, allowedProps)
     : rawSectors;
@@ -103,6 +113,16 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
                 />
               );
             })}
+            {/* Dynamic tab for tag descendant targets (">p", ">p:nth-of-type(2)", etc.) */}
+            {initialTab?.startsWith('>') && (
+              <TabButton
+                label={formatTagTab(initialTab)}
+                value={initialTab}
+                active={activeTab}
+                onClick={setActiveTab}
+                title="Style this element"
+              />
+            )}
             {hasAnyTargetStyles && activeTab === 'self' && (
               <span style={{ fontSize: 9, background: 'var(--ed-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', marginLeft: 'auto', alignSelf: 'center' }}>
                 sub-elements active
@@ -169,15 +189,33 @@ function TabButton({ label, value, active, onClick, dot, title }: {
   );
 }
 
-function SectorPanel({ sector, children }: { sector: StyleSector; children: React.ReactNode }) {
+const EXPANDED_BY_DEFAULT = new Set(['Typography', 'Background']);
+
+function SectorPanel({ sector, children }: { sector: StyleSector; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(EXPANDED_BY_DEFAULT.has(sector.label));
+
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ed-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          width: '100%', padding: 0, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          fontSize: 10, fontWeight: 600, color: 'var(--ed-text-muted)',
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+          marginBottom: expanded ? 6 : 0,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        <span style={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', fontSize: 8 }}>&#9660;</span>
         {sector.label}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {children}
-      </div>
+      </button>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -262,15 +300,49 @@ function StyleRow({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
-function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string }>; onChange: (v: string) => void }) {
+function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string; group?: string }>; onChange: (v: string) => void }) {
   const isCustom = value !== '' && !presets.some(p => p.value === value);
+  const hasGroups = presets.some(p => p.group);
+
+  if (!hasGroups) {
+    return (
+      <select
+        value={isCustom ? '__custom__' : value}
+        onChange={(e) => onChange(e.target.value === '__custom__' ? value : e.target.value)}
+        style={selectStyle}
+      >
+        {presets.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+        {isCustom && <option value="__custom__">Custom: {value}</option>}
+      </select>
+    );
+  }
+
+  // Group presets by category for <optgroup> rendering
+  const grouped: { group: string; items: typeof presets }[] = [];
+  const ungrouped: typeof presets = [];
+  const groupMap = new Map<string, typeof presets>();
+  for (const p of presets) {
+    if (p.group) {
+      let arr = groupMap.get(p.group);
+      if (!arr) { arr = []; groupMap.set(p.group, arr); grouped.push({ group: p.group, items: arr }); }
+      arr.push(p);
+    } else {
+      ungrouped.push(p);
+    }
+  }
+
   return (
     <select
       value={isCustom ? '__custom__' : value}
       onChange={(e) => onChange(e.target.value === '__custom__' ? value : e.target.value)}
       style={selectStyle}
     >
-      {presets.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+      {ungrouped.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+      {grouped.map(g => (
+        <optgroup key={g.group} label={g.group}>
+          {g.items.map(p => <option key={p.label} value={p.value}>{p.label}</option>)}
+        </optgroup>
+      ))}
       {isCustom && <option value="__custom__">Custom: {value}</option>}
     </select>
   );
@@ -302,6 +374,16 @@ function filterSectors(sectors: StyleSector[], allowed: string[]): StyleSector[]
     }
   }
   return result;
+}
+
+/** Format a descendant target for tab display: ">p" → "<p>", ">.s1" → ".s1", ">p:nth-of-type(2)" → "<p>#2" */
+function formatTagTab(target: string): string {
+  const raw = target.slice(1);
+  // Class target: ".s1" → ".s1"
+  if (raw.startsWith('.')) return raw;
+  const nthMatch = raw.match(/^(\w+):nth-of-type\((\d+)\)$/);
+  if (nthMatch) return `<${nthMatch[1]}>#${nthMatch[2]}`;
+  return `<${raw}>`;
 }
 
 export { StyleRow };

@@ -12,9 +12,11 @@ import { wrapBold, wrapItalic, wrapCode, insertLink } from '../format-bar/format
 import { FormatBar } from '../format-bar/FormatBar';
 import { useEditorStore } from '../store/editor-store';
 import { blockColorPlugin } from './block-color-plugin';
+import { blockDeletePlugin } from './block-delete-plugin';
 import { applyExternalUpdate } from './diff-update';
 import { clearPendingScroll } from './safe-dispatch';
 import { shouldScrollToBlock } from '../store/selection-orchestrator';
+import { parseCursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@mklyml/core';
 
 interface MklyEditorProps {
@@ -82,6 +84,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
   const focusIntent = useEditorStore((s) => s.focusIntent);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const wordWrap = useEditorStore((s) => s.mklyWordWrap);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
 
   const sourceRef = useRef(source);
   const errorsRef = useRef(errors);
@@ -134,6 +137,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
         highlightField,
         dropLineField,
         blockColorPlugin(completionData),
+        blockDeletePlugin(),
         mklyLinter(),
         keymap.of([
           { key: 'Mod-b', run: wrapBold },
@@ -321,18 +325,71 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     if (!currentView) return;
     const adjustedPos = Math.min(pos + usePrefix.length, currentView.state.doc.length);
     const line = currentView.state.doc.lineAt(adjustedPos);
-    const insertText = `\n--- ${blockName}\n`;
+
+    // Build insert text with required properties scaffolded
+    const blockDocs = completionData.docs.get(blockName);
+    const requiredProps = blockDocs?.properties?.filter((p) => p.required) ?? [];
+    const propLines = requiredProps.map((p) => `${p.name}: `).join('\n');
+    const insertText = `\n--- ${blockName}\n${propLines}${propLines ? '\n' : ''}`;
     currentView.dispatch({
       changes: { from: line.to, insert: insertText },
     });
 
+    // Place cursor at the first required property value (after ": ")
     requestAnimationFrame(() => {
       const newView = viewRef.current;
       if (!newView) return;
+      if (requiredProps.length > 0) {
+        // Cursor goes after "propName: " on the first required prop line
+        const propLineNum = line.number + 2; // +1 for header, +1 for first prop
+        if (propLineNum <= newView.state.doc.lines) {
+          const propLine = newView.state.doc.line(propLineNum);
+          newView.dispatch({
+            selection: { anchor: propLine.to },
+          });
+          newView.focus();
+        }
+      }
       const newLineNum = Math.min(line.number + 1, newView.state.doc.lines);
       useEditorStore.getState().focusBlock(newLineNum, 'block-dock');
     });
   }, [completionData]);
+
+  // Style pick mode: clicking in code editor opens the style popup at cursor
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !stylePickMode) return;
+
+    const handler = (e: MouseEvent) => {
+      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+      if (pos === null) return;
+      const line = view.state.doc.lineAt(pos);
+      const source = view.state.doc.toString();
+      const block = parseCursorBlock(source, line.number);
+      if (!block || block.isSpecial) return;
+
+      const coords = view.coordsAtPos(pos);
+      if (!coords) return;
+
+      const store = useEditorStore.getState();
+      store.focusBlock(line.number, 'mkly');
+      store.openStylePopup({
+        blockType: block.type,
+        target: 'self',
+        label: block.label,
+        sourceLine: line.number,
+        anchorRect: {
+          x: coords.left,
+          y: coords.top,
+          width: 0,
+          height: coords.bottom - coords.top,
+        },
+      });
+    };
+
+    view.dom.addEventListener('mousedown', handler);
+    return () => view.dom.removeEventListener('mousedown', handler);
+  }, [stylePickMode]);
 
   return (
     <>

@@ -103,6 +103,29 @@ const darkEditorTheme = EditorView.theme({
     background: 'rgba(226, 114, 91, 0.12)',
     borderBottom: '2px solid var(--ed-accent)',
   },
+  '.mkly-delete-gutter .cm-gutterElement': {
+    padding: '0 2px',
+    cursor: 'default',
+  },
+  '.mkly-delete-gutter .mkly-block-delete-btn': {
+    opacity: '0',
+    cursor: 'pointer',
+    color: '#ff6b6b',
+    fontSize: '16px',
+    lineHeight: '1.6',
+    fontWeight: '700',
+    transition: 'opacity 0.15s',
+    userSelect: 'none',
+    position: 'relative',
+    top: '-3px',
+    right: '-2px',
+  },
+  '.mkly-delete-gutter .cm-gutterElement.mkly-line-hover .mkly-block-delete-btn': {
+    opacity: '0.25',
+  },
+  '.mkly-delete-gutter .cm-gutterElement:hover .mkly-block-delete-btn': {
+    opacity: '1',
+  },
 }, { dark: true });
 
 const darkHighlightStyle = HighlightStyle.define([

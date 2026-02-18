@@ -2,14 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '../store/editor-store';
 import { HtmlSourceEditor } from './HtmlSourceEditor';
 import { EditablePreview } from './EditablePreview';
+import { EmptyState } from './EmptyState';
 import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
-import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, syncActiveBlock, bindBlockClicks } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
+import { morphIframeContent } from './iframe-morph';
+import { getErrorHint } from './error-hints';
 
-export function PreviewPane() {
+interface PreviewPaneProps {
+  onInsertBlock?: (blockType: string) => void;
+}
+
+export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
+  const source = useEditorStore((s) => s.source);
   const html = useEditorStore((s) => s.html);
   const viewMode = useEditorStore((s) => s.viewMode);
   const outputMode = useEditorStore((s) => s.outputMode);
@@ -23,57 +30,82 @@ export function PreviewPane() {
   const setScrollLock = useEditorStore((s) => s.setScrollLock);
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
+  const stylePopup = useEditorStore((s) => s.stylePopup);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const stylePickModeRef = useRef(stylePickMode);
+  const initializedRef = useRef(false);
+  const lastThemeRef = useRef(theme);
+  stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
     const sync = syncRef.current;
     return () => sync.destroy();
   }, []);
 
-  // Write HTML to preview iframe imperatively (preserves scroll position)
+  // Write HTML to preview iframe — first render does full doc.write,
+  // subsequent updates use DOM morphing to preserve scroll + state.
   useEffect(() => {
     const iframe = iframeRef.current;
     const showIframe = viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email');
     if (!iframe || !html || !showIframe) return;
     const doc = iframe.contentDocument;
     if (!doc) return;
+
+    const themeChanged = theme !== lastThemeRef.current;
+    lastThemeRef.current = theme;
+
+    // Try morph for subsequent renders (same theme)
+    if (initializedRef.current && !themeChanged) {
+      const morphed = morphIframeContent(doc, html);
+      if (morphed) {
+        // Style pick handlers survive morph (they're on the document, not elements)
+        return;
+      }
+    }
+
+    // Full document write: first render, theme change, or morph failed
     setScrollLock(true);
-    const anchor = captureScrollAnchor(doc);
     doc.open();
     doc.write(html);
     doc.close();
 
+    initializedRef.current = true;
+
     // Inject highlight + dark mode styles
     const isDark = useEditorStore.getState().theme === 'dark';
-    const extraCss = ACTIVE_BLOCK_CSS + (isDark ? IFRAME_DARK_CSS : '');
+    const extraCss = ACTIVE_BLOCK_CSS + '\n' + STYLE_PICK_CSS + (isDark ? IFRAME_DARK_CSS : '');
     if (extraCss) {
       const style = doc.createElement('style');
       style.textContent = extraCss;
       (doc.head ?? doc.documentElement)?.appendChild(style);
     }
 
-    // Intercept link clicks — open in new browser tab instead of navigating the iframe
+    // Intercept link clicks — open in new browser tab instead of navigating the iframe.
+    // In style pick mode, just prevent navigation (don't open in new tab).
     doc.addEventListener('click', (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest('a');
       if (a?.href) {
         e.preventDefault();
-        window.open(a.href, '_blank', 'noopener');
+        if (!stylePickModeRef.current) {
+          window.open(a.href, '_blank', 'noopener');
+        }
       }
     });
 
     bindBlockClicks(doc, 'preview');
 
-    if (anchor) {
-      requestAnimationFrame(() => {
-        restoreScrollAnchor(doc, anchor);
-        setScrollLock(false);
-      });
-    } else {
-      requestAnimationFrame(() => setScrollLock(false));
+    // Re-bind style pick handlers after full rewrite (if mode is active)
+    if (stylePickModeRef.current) {
+      setStylePickClass(doc, true);
+      bindStylePickHover(doc);
+      bindStylePickClick(doc, iframe);
     }
+
+    requestAnimationFrame(() => setScrollLock(false));
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, outputMode, setScrollLock, theme]);
 
@@ -83,11 +115,31 @@ export function PreviewPane() {
     if (!iframeVisible) return;
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock);
+    const styleTarget = stylePopup ? { blockType: stylePopup.blockType, target: stylePopup.target, targetIndex: stylePopup.targetIndex } : null;
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock, styleTarget);
     if (activeBlockLine !== null) {
-      setComputedStyles(queryComputedStyles(doc, activeBlockLine));
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles]);
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup]);
+
+  // Style pick mode: toggle hover/click handlers in preview iframe
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc?.body || !iframe) return;
+
+    setStylePickClass(doc, stylePickMode);
+
+    if (stylePickMode) {
+      const cleanupHover = bindStylePickHover(doc);
+      const cleanupClick = bindStylePickClick(doc, iframe);
+      return () => {
+        cleanupHover();
+        cleanupClick();
+        if (doc.body) setStylePickClass(doc, false);
+      };
+    }
+  }, [stylePickMode, html]);
 
   const lastCompiledRef = useRef('');
   useEffect(() => { lastCompiledRef.current = prettyHtml; }, [prettyHtml]);
@@ -112,6 +164,9 @@ export function PreviewPane() {
     });
   }, [setSource]);
 
+  const hasContentBlocks = /^--- [\w-]+\/\w/m.test(source);
+  const showEmptyState = !hasContentBlocks && viewMode === 'preview' && onInsertBlock;
+
   return (
     <div style={{
       display: 'flex',
@@ -132,6 +187,7 @@ export function PreviewPane() {
           Email output is read-only — switch to Web to edit
         </div>
       )}
+      {showEmptyState && <EmptyState onInsertBlock={onInsertBlock} />}
       <iframe
         ref={iframeRef}
         title="Preview"
@@ -139,7 +195,7 @@ export function PreviewPane() {
           flex: 1,
           border: 'none',
           background: 'var(--ed-surface, #fff)',
-          display: viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email')
+          display: !showEmptyState && (viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email'))
             ? 'block' : 'none',
         }}
       />
@@ -209,29 +265,54 @@ export function PreviewPane() {
         </div>
       )}
       {errors.length > 0 && (
-        <div style={{
-          padding: '6px 14px',
-          background: 'var(--ed-error-bg)',
-          borderTop: '1px solid var(--ed-border)',
-          fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--ed-error-text)',
-          maxHeight: 100,
-          overflowY: 'auto',
-          flexShrink: 0,
-        }}>
-          {errors.map((err, i) => (
-            <p
-              key={i}
-              style={{
-                margin: '1px 0',
-                color: err.severity === 'warning' ? 'var(--ed-warning-text)' : undefined,
-              }}
-            >
-              {err.severity === 'warning' ? 'warn' : 'error'}: line {err.line}
-              {'blockType' in err ? ` [${err.blockType}]` : ''} — {err.message}
-            </p>
-          ))}
+        <div
+          data-error-panel
+          style={{
+            padding: '6px 14px',
+            background: 'var(--ed-error-bg)',
+            borderTop: '1px solid var(--ed-border)',
+            fontSize: 12,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            color: 'var(--ed-error-text)',
+            maxHeight: 120,
+            overflowY: 'auto',
+            flexShrink: 0,
+          }}
+        >
+          {errors.map((err, i) => {
+            const hint = getErrorHint(err.message);
+            return (
+              <div key={i} style={{ margin: '4px 0' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 6,
+                    color: err.severity === 'warning' ? 'var(--ed-warning-text)' : undefined,
+                  }}
+                >
+                  <span
+                    onClick={() => useEditorStore.getState().focusBlock(err.line, 'preview', 'navigate')}
+                    style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', opacity: 0.7, flexShrink: 0 }}
+                    title="Jump to line"
+                  >
+                    line {err.line}
+                  </span>
+                  <span>{hint.friendly}</span>
+                </div>
+                {hint.fix && (
+                  <div style={{ fontSize: 11, color: 'var(--ed-accent)', opacity: 0.85, marginLeft: 2, marginTop: 1 }}>
+                    {hint.fix}
+                  </div>
+                )}
+                {hint.friendly !== err.message && (
+                  <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.5, marginLeft: 2, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {err.message}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

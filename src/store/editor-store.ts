@@ -71,6 +71,18 @@ interface EditorState {
   isNormalized: boolean;
   normalizationWarnings: Array<ParseError>;
 
+  // Style pick mode: click elements in preview to open floating style popup
+  stylePickMode: boolean;
+  stylePopup: {
+    blockType: string;
+    target: string;        // 'self', 'img', 'link', '>.s1', '>li', etc.
+    label?: string;
+    sourceLine: number;    // block's source line — used for cursor adjustment after style changes
+    targetLine?: number;   // content element's source line — for deferred class injection
+    targetIndex?: number;  // index among same-tag siblings (e.g., 2nd <li> → 1)
+    anchorRect: { x: number; y: number; width: number; height: number };
+  } | null;
+
   // Persistent undo/redo
   documentId: string;
   canUndo: boolean;
@@ -99,6 +111,9 @@ interface EditorState {
   setIsNormalized: (normalized: boolean) => void;
   setNormalizationWarnings: (warnings: Array<ParseError>) => void;
   setSelection: (state: Partial<SelectionState>, origin: FocusOrigin) => void;
+  setStylePickMode: (mode: boolean) => void;
+  openStylePopup: (info: EditorState['stylePopup']) => void;
+  closeStylePopup: () => void;
 
   // Single entry point: any tab calls this to say "user is at this mkly line"
   focusBlock: (line: number, origin: FocusOrigin, intent?: FocusIntent) => void;
@@ -110,168 +125,177 @@ interface EditorState {
   clearHistory: () => void;
 }
 
-const EXAMPLE = `--- use: core
+export const EXAMPLE_NEWSLETTER = `--- use: core
 --- use: newsletter
---- theme: newsletter/graphite
+--- theme: newsletter/light
 --- preset: newsletter/editorial
 
 --- meta
 version: 1
-title: The Cat's Meow Newsletter
-subject: Your Weekly Dose of Feline Fun & Facts
-
---- style
-primary: #4A3728 // Dark brown
-accent: #D4A574 // Golden tan
-body
-  bg: #F7F3EB // Light cream background
-  fg: #333333 // Dark grey for text
-
-newsletter/header
-  bg: $primary
-  fg: white
-  padding: 24px
-
-newsletter/intro
-  padding: 24px 0
-  border-bottom: 1px solid #EEEEEE
-
-newsletter/featured
-  .image
-    rounded: 8px
-  .source
-    fg: $accent
-    font-weight: bold
-  padding: 32px 0
-
-newsletter/category
-  padding: 32px 0
-  .heading
-    fg: $primary
-    border-bottom: 2px solid $accent
-    padding-bottom: 8px
-    margin-bottom: 24px
-
-newsletter/item
-  .image
-    rounded: 4px
-  .source
-    fg: $accent
-    font-size: 0.9em
-  margin-bottom: 24px
-
-newsletter/quickHits
-  padding: 24px
-  rounded: 8px
-  .heading
-    fg: $primary
-
-newsletter/outro
-  padding: 32px
-  rounded: 8px
-  .cta
-    bg: $accent
-    fg: white
-    rounded: 5px
-    padding: 12px 24px
-    text-decoration: none
-    display: inline-block
-    :hover
-      bg: darken($accent, 10%)
-
-core/footer
-  bg: $primary
-  fg: white
-  padding: 24px
-  text-align: center
+title: The Pulse AI
+subject: AI Is Rewriting the SaaS Playbook
 
 --- core/header
-title: logo:
-title: The Cat's Meow Newsletter
+title: The Pulse AI
 
-A weekly purr-fect collection of news, tips, and adorable cat content straight to your inbox!
+Your daily brief on the ideas, tools, and breakthroughs shaping artificial intelligence.
 
 --- newsletter/intro
-Welcome to this week's edition of The Cat's Meow! We're diving into some fascinating feline stories, from mysterious bald kittens to the surprising ways our pets can influence nature. Get ready for your dose of all things cat!
-
---- core/spacer
-height: 24
+Good morning. This week, something quietly shifted in the software industry. The SaaS companies that built empires on learned interfaces and sticky workflows are watching their moats evaporate in real time. Today we break down exactly why \u2014 and what comes next. Plus: a reasoning model that runs on your laptop, a step-by-step prompt engineering tutorial, and the five headlines you need to see before your morning meeting.
 
 --- newsletter/featured
-image: https://i.chzbgr.com/original/44317445/h8B09E0AB/kittens-where-one-is-born-mysteriously-hairless-thumbnail-includes-one-picture-of-newborn-kittens
-source: cheezburger.com
-author: Blake Seidel
-link: https://cheezburger.com/44317445/shes-bald-mother-of-two-tabby-cats-has-a-healthy-litter-of-kittens-but-quickly-realizes-that-one-of
+image: https://images.unsplash.com/photo-1639322537228-f710d846310a?w=800&h=400&fit=crop
+source: Analysis
+author: The Pulse AI
+link: https://example.com/saas-disruption
 
-## 'She's bald!': Mother of two tabby cats has a healthy litter of kittens, but quickly realizes that one of her healthy babies is not like the others
-It's not nice to call a beautiful young lady "bald," even if she is! We're not going to sit here and pretend like we're expurrt geneticists, but we do know a thing or two about cats, so that's where we come in. This week, we're highlighting the story of a mother cat with a healthy litter, but one very unique kitten.
+## AI Is Quietly Dismantling the Three Moats That Built the SaaS Industry
+Global SaaS company stocks have taken a major nosedive this year, wiping out hundreds of billions in market value. And while most headlines blame macroeconomic pressure, the real story is far more structural: artificial intelligence is eroding the three competitive moats that made SaaS companies nearly impossible to displace.
+
+**The first moat was learned interfaces.** For decades, products like Salesforce, Adobe, and SAP thrived because users invested months or years learning their specific UIs. Switching meant retraining entire teams. But when an AI agent can operate any interface on a user's behalf, the learning curve disappears. It doesn't matter how complex your product is if the user never has to touch it directly.
+
+**The second moat was custom workflows.** Enterprise SaaS companies locked in customers through deeply customized automations \u2014 hundreds of Zapier integrations, custom fields, approval chains built over years. AI is flattening this advantage. A well-prompted language model can now replicate most of these workflows in minutes, reading documentation and APIs to wire things together on the fly. The switching cost drops from "six-month migration project" to "afternoon experiment."
+
+**The third, and most interesting, moat was data scaffolding.** SaaS products became the system of record. Your CRM held your customer relationships. Your project management tool held your team's institutional knowledge. But AI can now ingest, structure, and query data from any source. The data doesn't need to live inside one product anymore. A retrieval pipeline connected to your raw files can do what a purpose-built SaaS dashboard used to do.
+
+So what survives? Companies with genuinely proprietary data \u2014 Bloomberg terminals, medical imaging databases, satellite feeds \u2014 still have something AI can't easily replicate. Regulatory lock-ins in healthcare and finance create real barriers too. And products that are already becoming AI-native (embedding models deeply into the workflow rather than bolting them on) have a head start. But for the vast middle of the SaaS industry? The next eighteen months are going to be a reckoning.
 
 --- core/spacer
-height: 32
+height: 16
 
 --- newsletter/category
-title: Latest News &amp; Feline Finds
+title: Today in AI
 
 --- newsletter/item
-image: https://i.chzbgr.com/original/44307973/h95341854/31-pictures-of-cats-refusing-cuddles-thumbnail-includes-two-pictures-of-cats-refusing-cuddles
-source: cheezburger.com
-link: https://cheezburger.com/44307973/31-feisty-photos-of-spicy-cats-proving-their-cuddles-are-conditional-at-best
+image: https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=300&h=200&fit=crop
+source: arXiv
+link: https://example.com/small-reasoning-model
 
-### 31 Feisty Photos of Spicy Cats Proving Their Cuddles Are Conditional at Best
-Out of all the creatures we let live in our house, cats are the best at saying "no." Dogs always want your love and affection. If they had it their way, they would be glued to your side 24 hours a day, 7 days a week. Cats? Not so much. Dive into this hilarious collection of cats setting their boundaries.
+### A 7B Model Just Matched GPT-4 on Math \u2014 And It Runs on a Laptop
+Researchers at Stanford released Phi-Reason, a 7-billion parameter model that scores 89% on GSM8K and 72% on MATH, putting it within striking distance of GPT-4's performance on mathematical reasoning tasks. The secret is a new technique called chain-of-thought distillation: they took reasoning traces from a much larger model, compressed them into structured training data, and used that to teach the small model *how* to think, not just what to answer.
 
---- newsletter/item
-image: https://www.sciencedaily.com/images/1920/caenoplana-variegata.webp
-source: science-daily
-link: https://www.sciencedaily.com/releases/2026/02/260210231550.htm
-
-### Scientists discover pets are helping an invasive flatworm spread
-A new study shows that dogs and cats may be helping an invasive flatworm spread. Researchers analyzing over a decade of reports discovered the worm attached to pet fur. Its sticky mucus and ability to survive in various environments make it a formidable invader. Learn more about this surprising discovery.
+The practical implication is significant. Phi-Reason runs comfortably on a MacBook Pro with 32GB of RAM at 12 tokens per second \u2014 fast enough for real-time applications. For companies worried about sending sensitive data to cloud APIs, this opens the door to on-device reasoning that stays entirely within their security perimeter.
 
 --- newsletter/item
-image: https://i.chzbgr.com/original/44303109/h70F56A3A/out-hes-been-waiting-for-me-to-go-to-sleep-then-licking-the-tip-of-the-olive-oil-bottle-all-night
-source: cheezburger.com
-link: https://cheezburger.com/44303109/confused-owner-who-doesnt-understand-why-her-chonky-cat-is-not-losing-weight-catches-the-cat-licking
+image: https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=300&h=200&fit=crop
+source: Bloomberg
+link: https://example.com/enterprise-ai-spending
 
-### Confused owner who doesn't understand why her chonky cat is not losing weight catches the cat licking the olive oil bottle in the middle of the night...
-The word "diet" is not part of any cat's vocabulary, and they refuse to learn it. We will start this by saying that chonky cats are amazing. And we love them. And they exist. Read about one owner's hilarious struggle to understand her cat's late-night snacking habits.
+### Enterprise AI Spending Hits $180B \u2014 But the Money Is Moving
+Bloomberg Intelligence reports that global enterprise AI spending reached $180 billion in 2025, up 47% year-over-year. But the more telling number is *where* the growth is happening. Spending on proof-of-concept projects actually declined 12%, while production deployment budgets nearly doubled.
+
+The biggest winners: data infrastructure tools (up 68%), MLOps platforms (up 54%), and fine-tuning services (up 41%). The biggest losers: AI consulting firms and "AI strategy" advisory services, which saw budgets cut by a third. The message from enterprises is clear: the experimentation phase is over, and the teams that get funded now are the ones shipping to production.
 
 --- newsletter/item
-image: https://www.cnet.com/a/img/resize/5afd01a9b3021cd3e2440a06f166ce30817a79a8/hub/2024/10/07/3b36e9f2-4d10-4847-a3f3-0fbc7d08c5e8/gettyimages-1365457057.jpg?auto=webp&amp;fit=crop&amp;height=675&amp;width=1200
-source: cnet
-link: https://www.cnet.com/home/pet-friendly-nontoxic-houseplants/
+image: https://images.unsplash.com/photo-1555255707-c07966088b7b?w=300&h=200&fit=crop
+source: Google DeepMind
+link: https://example.com/protein-folding-update
 
-### 7 Pet-Friendly Houseplants That Are Safe for Cats and Dogs
-Don't take a chance with toxic houseplants. Opt for a pet-safe plant to keep your furry family safe. This guide provides excellent options for greening your home without endangering your beloved pets.
+### AlphaFold 3 Can Now Predict How Molecules Interact \u2014 Not Just Their Shape
+DeepMind's latest update to AlphaFold moves beyond protein structure prediction to model how proteins interact with DNA, RNA, and small molecules with near-experimental accuracy. Previous versions could tell you what a protein looked like; AlphaFold 3 can now tell you what it *does* when it encounters another molecule.
+
+For drug discovery, this is transformative. Pharmaceutical companies typically spend months in wet labs testing molecular interactions. AlphaFold 3 can simulate thousands of these interactions in hours, dramatically narrowing the field of candidates before a single test tube is touched. Two major pharma companies have already announced partnerships to integrate the tool into their early-stage drug pipelines.
 
 --- /newsletter/category
 
 --- core/divider
 
+--- newsletter/sponsor
+image: https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=250&fit=crop
+link: https://example.com/sponsor-datastack
+label: Start your free trial
+
+Power your AI pipeline with **DataStack Cloud**. From ingestion to fine-tuning, one platform handles your entire data workflow. Teams using DataStack ship models to production 3x faster, with built-in versioning, monitoring, and rollback. Trusted by 2,000+ AI teams worldwide.
+
+--- core/divider
+
+--- newsletter/tipOfTheDay
+title: Tutorial: The 3-Layer Prompt Framework
+
+Most prompts fail because they dump everything into one block of text. Here's a structured framework that consistently produces better results across any model:
+
+**Layer 1 \u2014 Role &amp; Context.** Start by telling the model who it is and what situation it's in. Example: *"You are a senior data analyst at a fintech company. You're preparing a quarterly board presentation."*
+
+**Layer 2 \u2014 Task &amp; Constraints.** Be specific about what you want and what the boundaries are. Example: *"Analyze the attached CSV of transaction data. Identify the top 3 revenue trends and the top 3 risk signals. Do not speculate beyond what the data shows."*
+
+**Layer 3 \u2014 Format &amp; Tone.** Tell it exactly how to structure the output. Example: *"Present findings as a bulleted executive summary (max 200 words), followed by a detailed appendix with supporting data points. Use a professional but accessible tone."*
+
+The key insight is that each layer answers a different question: Layer 1 answers "who am I?", Layer 2 answers "what should I do?", and Layer 3 answers "how should I present it?" When you separate these concerns, the model can reason about each independently, which dramatically reduces hallucination and off-target responses.
+
 --- newsletter/quickHits
-## Did You Know?
-*   Cats can make over 100 different sounds, whereas dogs can only make about 10.
+## Quick Hits
+*   **Anthropic** raised $2B at a $60B valuation, with backing from Google and Salesforce Ventures. The round makes it the second most valuable AI startup behind OpenAI.
 
-*   A group of cats is called a "clowder."
+*   **Meta** open-sourced their internal code review AI, trained on 10 years of internal diffs and code comments. Early benchmarks show it catches 34% more bugs than existing linters.
 
-*   Cats sleep for about 70% of their lives.
+*   **NVIDIA** announced the B300 chip with 2x the inference throughput of the B200 at the same power draw. Pre-orders are already sold out through Q3.
 
-*   The oldest cat on record lived to be 38 years old!
+*   **Apple** quietly shipped on-device summarization for Mail, Messages, and Safari in iOS 19 beta 3. The models run entirely on the Neural Engine with zero cloud dependency.
+
+*   **EU AI Act** enforcement has officially begun. The first compliance audits target high-risk systems in hiring, credit scoring, and medical diagnostics. Fines can reach 7% of global revenue.
+
+--- newsletter/tools
+title: Tools &amp; Resources
+
+--- newsletter/item
+source: GitHub
+link: https://example.com/tool-llamacpp
+
+### llama.cpp v4.0 \u2014 Run 70B Models on Consumer GPUs
+The latest release introduces 2-bit quantization with minimal quality loss and a new speculative decoding engine. Benchmarks show 40 tokens per second on an RTX 4090 for Llama 3 70B \u2014 fast enough for real-time chat applications. The memory footprint dropped to 24GB, making it feasible on a single consumer GPU for the first time.
+
+--- newsletter/item
+source: Hugging Face
+link: https://example.com/tool-datasets
+
+### Open Dataset Hub \u2014 50K+ Curated Datasets for Fine-Tuning
+Hugging Face launched a curated dataset collection with quality scores, license metadata, and one-click integration with popular training frameworks. Each dataset comes with a data card showing distribution statistics, known biases, and recommended use cases. Filter by domain, language, task type, and license.
+
+--- /newsletter/tools
+
+--- core/divider
+
+--- newsletter/poll
+question: What's your biggest challenge with AI in production?
+option1: Data quality and labeling
+option2: Cost management at scale
+option3: Latency and reliability
+option4: Compliance and governance
+
+--- newsletter/community
+author: Maria Chen, ML Engineer
+
+I switched from running my own fine-tuning infrastructure to using managed endpoints six months ago. My team's iteration speed went from weekly deployments to multiple times per day. The cost is slightly higher per inference call, but the engineering time saved more than makes up for it. We eliminated two full-time positions that were just maintaining GPU clusters, and redirected those engineers to actually building features. Don't underestimate the hidden cost of infrastructure ownership.
+
+--- newsletter/personalNote
+I've been thinking a lot about the SaaS disruption piece this week, and here's what keeps nagging at me: the founders I talk to aren't scared of AI replacing their *product*. They're scared of AI replacing the *reason users open their product in the first place*.
+
+Think about it. Nobody opens a project management tool because they love the interface. They open it because their tasks live there. If an AI agent can pull those tasks from anywhere, surface the right ones at the right time, and mark them complete without you ever visiting a dashboard \u2014 what's the dashboard for?
+
+The companies that will win are the ones building the intelligence layer itself, not wrapping AI features around an existing UI. That's a hard pill for a lot of startups to swallow, but the data is increasingly hard to argue with.
+
+--- newsletter/recommendations
+title: Weekend Reads
+- {@url:https://example.com/read-1}Attention Is All You Need \u2014 Revisited{/} \u2014 A retrospective from the original Transformer paper authors, eight years later. They discuss what they got right, what surprised them, and what they'd do differently today.
+
+- {@url:https://example.com/read-2}The Hidden Costs of "Free" AI APIs{/} \u2014 Rate limits, deprecation cycles, and vendor lock-in are the real price. This deep dive calculates the true total cost of ownership for three different API providers over a two-year period.
+
+- {@url:https://example.com/read-3}Building AI Products That Survive the Hype Cycle{/} \u2014 Lessons from companies that shipped AI features in 2023 and are still iterating today. The common thread: they solved boring problems really well.
 
 --- core/divider
 
 --- newsletter/outro
-ctaUrl: https://www.example.com/subscribe
-ctaText: Join Our Community
+ctaUrl: https://example.com/share
+ctaText: Share The Pulse AI
 
-## That's a Wrap for This Week!
-Thank you for tuning into The Cat's Meow! We hope you enjoyed this week's collection of all things feline. Don't forget to share your favorite cat stories with us!
+## Thanks for Reading
+If today's issue gave you something to think about, forward it to a colleague who's building with AI. Every share helps us keep this newsletter free and independent. See you tomorrow.
 
 --- core/footer
-The Cat's Meow Newsletter | &copy; 2024 All Rights Reserved.
-Questions? Contact us at info@catsmeow.com
+The Pulse AI | &copy; 2026 All Rights Reserved.
+You're receiving this because you signed up at thepulseai.com
 
-{@url:https://www.example.com/privacy}Privacy Policy{/} | {@url:https://www.example.com/unsubscribe}Unsubscribe{/}
+{@url:https://example.com/privacy}Privacy Policy{/} | {@url:https://example.com/preferences}Manage Preferences{/} | {@url:https://example.com/unsubscribe}Unsubscribe{/}
 `;
 
 // Undo handlers registered by useUndoInit hook — no undo logic in the store.
@@ -287,7 +311,7 @@ export function registerUndoHandlers(handlers: typeof _undoHandlers): void {
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
-  source: EXAMPLE,
+  source: '',
   html: '',
   errors: [],
   outputMode: 'web',
@@ -312,6 +336,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   htmlWordWrap: true,
   isNormalized: false,
   normalizationWarnings: [],
+  stylePickMode: false,
+  stylePopup: null,
   documentId: '_default',
   canUndo: false,
   canRedo: false,
@@ -352,6 +378,10 @@ export const useEditorStore = create<EditorState>((set) => ({
     focusOrigin: origin,
     focusVersion: state.focusVersion + 1,
   })),
+
+  setStylePickMode: (mode) => set(mode ? { stylePickMode: true } : { stylePickMode: false, stylePopup: null }),
+  openStylePopup: (info) => set({ stylePopup: info }),
+  closeStylePopup: () => set({ stylePopup: null }),
 
   focusBlock: (line, origin, intent = 'navigate') => set((state) => {
     const { blockLine, blockType } = resolveBlockLine(line, state.source);

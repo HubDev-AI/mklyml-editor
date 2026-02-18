@@ -1,6 +1,9 @@
 /**
  * Queries computed CSS styles for a block element identified by data-mkly-line
  * in a preview iframe document. Returns a map of property names to computed values.
+ *
+ * When `styleTarget` is provided, queries the specific sub-element within the block
+ * (e.g., the link, image, or Nth list item) instead of the block root.
  */
 
 const QUERIED_PROPS = [
@@ -15,9 +18,27 @@ const QUERIED_PROPS = [
   'opacity', 'display',
 ] as const;
 
-export function queryComputedStyles(doc: Document, line: number): Record<string, string> {
-  const el = doc.querySelector(`[data-mkly-line="${line}"]`);
-  if (!el || !(el instanceof HTMLElement)) return {};
+interface StyleTarget {
+  blockType: string;
+  target: string;
+  targetIndex?: number;
+}
+
+export function queryComputedStyles(
+  doc: Document,
+  line: number,
+  styleTarget?: StyleTarget | null,
+): Record<string, string> {
+  const blockEl = doc.querySelector(`[data-mkly-line="${line}"]`);
+  if (!blockEl || !(blockEl instanceof HTMLElement)) return {};
+
+  let el: Element = blockEl;
+
+  // If a style target is specified, find the sub-element to query
+  if (styleTarget && styleTarget.target !== 'self' && !styleTarget.target.startsWith('self:')) {
+    const sub = findSubElement(blockEl, styleTarget);
+    if (sub) el = sub;
+  }
 
   const cs = doc.defaultView?.getComputedStyle(el);
   if (!cs) return {};
@@ -51,4 +72,28 @@ function collapseBox(r: Record<string, string>, top: string, right: string, bott
   if (t === ri && ri === b && b === l) return t;
   if (t === b && ri === l) return `${t} ${ri}`;
   return `${t} ${ri} ${b} ${l}`;
+}
+
+function findSubElement(blockEl: Element, styleTarget: StyleTarget): Element | null {
+  const { blockType, target, targetIndex } = styleTarget;
+
+  // Class target: >.s1
+  if (target.startsWith('>.')) {
+    return blockEl.querySelector(`.${target.slice(2)}`);
+  }
+
+  // Tag target: >li, >p — use targetIndex to find the exact one
+  if (target.startsWith('>')) {
+    const tag = target.slice(1);
+    if (targetIndex !== undefined) {
+      const all = blockEl.querySelectorAll(tag);
+      return all[targetIndex] ?? all[0] ?? null;
+    }
+    return blockEl.querySelector(tag);
+  }
+
+  // BEM sub-element: link, img, body, etc.
+  const sub = target.includes(':') ? target.split(':')[0] : target;
+  const baseClass = `mkly-${blockType.replace('/', '-')}`;
+  return blockEl.querySelector(`.${baseClass}__${sub}`);
 }
