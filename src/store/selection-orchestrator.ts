@@ -1,7 +1,7 @@
 import type { SourceMapEntry } from '@mklyml/core';
 import type { FocusOrigin, FocusIntent } from './editor-store';
 
-const SPECIAL_TYPES = new Set(['use', 'meta', 'theme', 'style']);
+const SPECIAL_TYPES = new Set(['use', 'meta', 'theme', 'preset', 'style']);
 
 /**
  * Find the sourceMap entry whose sourceLine range contains the given blockLine.
@@ -26,7 +26,7 @@ export function getBlockEntry(
 /**
  * Resolve the correct activeBlockLine from a cursor position.
  * Walks backward through source lines to find the containing block delimiter.
- * Returns null for special pseudo-blocks (use, meta, theme, style).
+ * Returns null for special pseudo-blocks (use, meta, theme, preset, style).
  */
 export function resolveBlockLine(
   cursorLine: number,
