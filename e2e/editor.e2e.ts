@@ -9,13 +9,14 @@ async function waitForEditor(page: Page) {
   // Wait for CodeMirror to mount (use .first() — HTML view also has .cm-content)
   await page.locator('.cm-content').first().waitFor({ timeout: 15000 });
   // Wait for initial normalization to complete (150ms debounce — prevents source clobber during typing)
+  // @ts-ignore — avoid TypeScript casts inside waitForFunction (bun doesn't strip them when serializing to browser)
   await page.waitForFunction(() => {
-    const store = (window as Record<string, unknown>).__editorStore;
-    if (store && typeof store === 'object' && 'getState' in store) {
-      return (store as { getState: () => { isNormalized: boolean } }).getState().isNormalized;
-    }
-    return false;
-  }, { timeout: 5000 });
+    // @ts-ignore
+    const store = window.__editorStore;
+    if (!store) return false;
+    // @ts-ignore
+    return store.getState().isNormalized === true;
+  }, undefined, { timeout: 5000 });
 }
 
 /** Simple source with common blocks for tests that need preview content. */
@@ -47,8 +48,12 @@ const SIMPLE_SOURCE = [
 
 /** Load a source and wait for preview to render. */
 async function loadSource(page: Page, source: string) {
-  await setSource(page, source);
-  await page.waitForTimeout(500);
+  // Set source atomically via store — avoids char-by-char typing race conditions
+  // that cause the EmptyState overlay to flash while the source is incomplete.
+  await page.evaluate((src) => {
+    // @ts-ignore
+    window.__editorStore.getState().setSource(src);
+  }, source);
   const frame = page.frameLocator('iframe[title="Preview"]');
   await frame.locator('.mkly-document').waitFor({ timeout: 15000 });
 }
@@ -77,10 +82,10 @@ async function setSource(page: Page, source: string) {
 /** Get the current source from the editor. */
 async function getSource(page: Page): Promise<string> {
   return page.evaluate(() => {
-    const store = (window as Record<string, unknown>).__editorStore;
-    if (store && typeof store === 'object' && 'getState' in store) {
-      return (store as { getState: () => { source: string } }).getState().source;
-    }
+    // @ts-ignore — avoid TypeScript casts (bun serialization issue)
+    const store = window.__editorStore;
+    // @ts-ignore
+    if (store?.getState) return store.getState().source;
     // Fallback: read from CodeMirror DOM
     const el = document.querySelector('.cm-content');
     return el?.textContent ?? '';

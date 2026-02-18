@@ -406,4 +406,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   clearHistory: () => _undoHandlers.clear(),
 }));
 
+// Expose store on window for E2E tests
+if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e')) {
+  (window as Record<string, unknown>).__editorStore = useEditorStore;
+}
+
 export type { FocusOrigin, FocusIntent, SelectionState };
