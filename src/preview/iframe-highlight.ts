@@ -27,7 +27,7 @@ function findStyleTargetElement(blockEl: Element, blockType: string, target: str
     const tag = target.slice(1);
     if (targetIndex !== undefined) {
       const all = blockEl.querySelectorAll(tag);
-      return all[targetIndex] ?? all[0] ?? null;
+      return all[targetIndex] ?? null;
     }
     return blockEl.querySelector(tag);
   }
@@ -59,7 +59,11 @@ export function syncActiveBlock(
       let highlightEl: Element = el;
       if (styleTarget) {
         const sub = findStyleTargetElement(el, styleTarget.blockType, styleTarget.target, styleTarget.targetIndex);
-        if (sub) highlightEl = sub;
+        if (sub) {
+          highlightEl = sub;
+        } else if (styleTarget.target !== 'self' && !styleTarget.target.startsWith('self:')) {
+          return;
+        }
       }
       highlightEl.setAttribute('data-mkly-active', '');
       if (shouldScrollToBlock(focusOrigin, selfOrigin, focusIntent, scrollLock)) {

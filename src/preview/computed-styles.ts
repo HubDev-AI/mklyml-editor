@@ -37,7 +37,8 @@ export function queryComputedStyles(
   // If a style target is specified, find the sub-element to query
   if (styleTarget && styleTarget.target !== 'self' && !styleTarget.target.startsWith('self:')) {
     const sub = findSubElement(blockEl, styleTarget);
-    if (sub) el = sub;
+    if (!sub) return {};
+    el = sub;
   }
 
   const cs = doc.defaultView?.getComputedStyle(el);
@@ -87,7 +88,7 @@ function findSubElement(blockEl: Element, styleTarget: StyleTarget): Element | n
     const tag = target.slice(1);
     if (targetIndex !== undefined) {
       const all = blockEl.querySelectorAll(tag);
-      return all[targetIndex] ?? all[0] ?? null;
+      return all[targetIndex] ?? null;
     }
     return blockEl.querySelector(tag);
   }

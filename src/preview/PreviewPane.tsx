@@ -39,6 +39,7 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
   const stylePickModeRef = useRef(stylePickMode);
   const initializedRef = useRef(false);
   const lastThemeRef = useRef(theme);
+  const blockClickCleanupRef = useRef<(() => void) | null>(null);
   stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
@@ -96,18 +97,20 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
       }
     });
 
-    bindBlockClicks(doc, 'preview');
-
-    // Re-bind style pick handlers after full rewrite (if mode is active)
-    if (stylePickModeRef.current) {
-      setStylePickClass(doc, true);
-      bindStylePickHover(doc);
-      bindStylePickClick(doc, iframe);
-    }
+    // Ensure only one block click handler is active for the current iframe document.
+    blockClickCleanupRef.current?.();
+    blockClickCleanupRef.current = bindBlockClicks(doc, 'preview');
 
     requestAnimationFrame(() => setScrollLock(false));
     setTimeout(() => setScrollLock(false), 100);
   }, [html, viewMode, outputMode, setScrollLock, theme]);
+
+  useEffect(() => {
+    return () => {
+      blockClickCleanupRef.current?.();
+      blockClickCleanupRef.current = null;
+    };
+  }, []);
 
   // Highlight active block in preview iframe (same logic as edit pane)
   useEffect(() => {
@@ -120,7 +123,10 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
     }
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup]);
+    // html dep: after recompilation morphs the iframe, re-sync the highlight on the
+    // updated DOM. Without this, focusBlock() called before compile finishes can
+    // leave data-mkly-active on a stale/morphed element (wrong specific target).
+  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup, html]);
 
   // Style pick mode: toggle hover/click handlers in preview iframe
   useEffect(() => {

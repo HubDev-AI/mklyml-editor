@@ -1,12 +1,11 @@
 import {
   mergeRule,
   removeRule,
-  serializeStyleGraph,
-  parseStyleGraph,
   emptyStyleGraph,
   getStyleValue,
 } from '@mklyml/core';
 import type { StyleGraph } from '@mklyml/core';
+import { parseStyleGraphCompat, serializeStyleGraphCompat } from './style-graph-compat';
 
 /**
  * Property regex: matches mkly property lines like `key: value`.
@@ -79,7 +78,7 @@ export function applyStyleChange(
   prop: string,
   value: string,
   label?: string,
-): PropertyChangeResult & { newGraph: StyleGraph; lineDelta: number } {
+): PropertyChangeResult & { newGraph: StyleGraph; lineDelta: number; shiftAfterLine: number } {
   let graph = styleGraph ?? emptyStyleGraph();
 
   // Auto-inject border-style: solid when border-width is set without an existing border-style.
@@ -97,20 +96,22 @@ export function applyStyleChange(
     : mergeRule(graph, blockType, target, prop, value, label);
 
   // Serialize to mkly style syntax
-  const serialized = serializeStyleGraph(newGraph);
+  const serialized = serializeStyleGraphCompat(newGraph);
 
   // Patch the --- style block in source
-  const { result: newSource, lineDelta } = patchStyleBlock(source, serialized);
+  const { result: newSource, lineDelta, shiftAfterLine } = patchStyleBlock(source, serialized);
 
-  return { newSource, newGraph, lineDelta };
+  return { newSource, newGraph, lineDelta, shiftAfterLine };
 }
 
 /**
  * Find and replace the --- style block content in source.
  * If no --- style block exists, insert one after preamble directives.
- * Returns the new source and the number of lines added/removed (lineDelta).
+ * Returns the new source, the number of lines added/removed (lineDelta),
+ * and the last old line that remains stable before any shift (`shiftAfterLine`).
+ * Old line numbers greater than `shiftAfterLine` should be adjusted by `lineDelta`.
  */
-function patchStyleBlock(source: string, newContent: string): { result: string; lineDelta: number } {
+function patchStyleBlock(source: string, newContent: string): { result: string; lineDelta: number; shiftAfterLine: number } {
   const lines = source.split('\n');
   const oldLineCount = lines.length;
 
@@ -144,7 +145,13 @@ function patchStyleBlock(source: string, newContent: string): { result: string; 
     const contentLines = newContent ? ['', ...newContent.split('\n'), ''] : [''];
 
     const resultLines = [...before, ...contentLines, ...(needsTrailingBlank ? [''] : []), ...after];
-    return { result: resultLines.join('\n'), lineDelta: resultLines.length - oldLineCount };
+    return {
+      result: resultLines.join('\n'),
+      lineDelta: resultLines.length - oldLineCount,
+      // `styleEnd` is the first old line index after the style block (0-based).
+      // Old line numbers > styleEnd are shifted.
+      shiftAfterLine: styleEnd,
+    };
   }
 
   // No --- style block found — insert after preamble (canonical order: style comes after meta)
@@ -174,12 +181,22 @@ function patchStyleBlock(source: string, newContent: string): { result: string; 
     const before = lines.slice(0, insertAfter + 1);
     const after = lines.slice(insertAfter + 1);
     const result = [...before, styleBlock, ...after].join('\n');
-    return { result, lineDelta: result.split('\n').length - oldLineCount };
+    return {
+      result,
+      lineDelta: result.split('\n').length - oldLineCount,
+      // Insertion happens after this old line number.
+      shiftAfterLine: insertAfter + 1,
+    };
   }
 
   // No preamble found — insert at the very beginning
   const result = styleBlock + '\n' + source;
-  return { result, lineDelta: result.split('\n').length - oldLineCount };
+  return {
+    result,
+    lineDelta: result.split('\n').length - oldLineCount,
+    // All old lines shift when inserting at top.
+    shiftAfterLine: 0,
+  };
 }
 
 /**
@@ -196,7 +213,7 @@ export function parseSourceStyleGraph(source: string): StyleGraph {
         if (lines[j].trim().match(/^---\s+[\w/]/)) break;
         contentLines.push(lines[j]);
       }
-      return parseStyleGraph(contentLines.join('\n'));
+      return parseStyleGraphCompat(contentLines.join('\n'));
     }
   }
 

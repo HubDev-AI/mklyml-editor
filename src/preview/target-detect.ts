@@ -83,41 +83,112 @@ export function extractBlockType(blockEl: Element): string | null {
  * Generate a unique style class name (s1, s2, ...) that doesn't exist in the source.
  */
 export function generateStyleClass(source: string): string {
-  const existing = [...source.matchAll(/\{\.s(\d+)\}/g)];
-  const maxNum = existing.length > 0
-    ? Math.max(...existing.map(m => parseInt(m[1])))
+  const classNums = [...source.matchAll(/\{\.s(\d+)\}/g)].map(m => parseInt(m[1], 10));
+  const labelNums = [...source.matchAll(/^---\s+(?!\/)[^\s:"]+:\s*s(\d+)/gm)].map(m => parseInt(m[1], 10));
+  const nums = [...classNums, ...labelNums];
+  const maxNum = nums.length > 0
+    ? Math.max(...nums)
     : 0;
   return `s${maxNum + 1}`;
 }
 
 /**
  * Inject a {.className} annotation onto a specific source line.
- * If the target line is blank, scans backward to find the nearest content line.
+ * Resolves the nearest content line within the selected block only.
  * Returns the modified source, or null if no suitable line was found.
  */
-export function injectClassAnnotation(source: string, lineNum: number, className: string): string | null {
+interface BlockRange {
+  start: number; // inclusive, 0-based
+  end: number; // exclusive, 0-based
+}
+
+const PROPERTY_LINE_RE = /^[\w./:+-]+:\s/;
+const OPEN_BLOCK_RE = /^---\s+(?!\/)/;
+
+function resolveBlockRange(lines: string[], lineIdx: number, blockLine?: number): BlockRange | null {
+  let start = -1;
+  const explicit = blockLine !== undefined ? blockLine - 1 : -1;
+  if (explicit >= 0 && explicit < lines.length && OPEN_BLOCK_RE.test(lines[explicit].trim())) {
+    start = explicit;
+  } else {
+    for (let i = Math.min(lineIdx, lines.length - 1); i >= 0; i--) {
+      if (OPEN_BLOCK_RE.test(lines[i].trim())) {
+        start = i;
+        break;
+      }
+    }
+  }
+  if (start === -1) return null;
+
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('---')) {
+      end = i;
+      break;
+    }
+  }
+
+  return { start, end };
+}
+
+function firstContentLine(lines: string[], range: BlockRange): number {
+  let i = range.start + 1;
+  // Skip header properties (immediately after block header).
+  while (i < range.end) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('---')) break;
+    if (PROPERTY_LINE_RE.test(trimmed)) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  // Skip blank spacer lines before actual content.
+  while (i < range.end && lines[i].trim() === '') i++;
+  return i;
+}
+
+function findNearestLine(
+  lines: string[],
+  range: BlockRange,
+  preferredIdx: number,
+  isCandidate: (line: string) => boolean,
+): number | null {
+  const min = firstContentLine(lines, range);
+  const max = range.end - 1;
+  if (min > max) return null;
+
+  const ref = Math.min(Math.max(preferredIdx, min), max);
+  if (isCandidate(lines[ref])) return ref;
+
+  for (let dist = 1; ref - dist >= min || ref + dist <= max; dist++) {
+    const up = ref - dist;
+    if (up >= min && isCandidate(lines[up])) return up;
+    const down = ref + dist;
+    if (down <= max && isCandidate(lines[down])) return down;
+  }
+  return null;
+}
+
+export function injectClassAnnotation(source: string, lineNum: number, className: string, blockLine?: number): string | null {
   const lines = source.split('\n');
   // lineNum is 1-based (from data-mkly-line), convert to 0-based array index
   const startIdx = lineNum - 1;
   if (startIdx < 0 || startIdx >= lines.length) return null;
 
-  // Find the actual content line — scan backward if target is blank or a block header.
-  let targetIdx = startIdx;
-  while (targetIdx >= 0) {
-    const line = lines[targetIdx].trim();
-    // Skip blank lines and block headers (--- blockType)
-    if (line === '' || line.startsWith('---')) {
-      targetIdx--;
-      continue;
-    }
-    // Skip property lines (key: value inside block header)
-    if (/^\w[\w-]*:\s/.test(line) && targetIdx > 0 && lines[targetIdx - 1].trim().startsWith('---')) {
-      targetIdx--;
-      continue;
-    }
-    break;
-  }
-  if (targetIdx < 0) return null;
+  const range = resolveBlockRange(lines, startIdx, blockLine);
+  if (!range) return null;
+
+  const targetIdx = findNearestLine(
+    lines,
+    range,
+    startIdx,
+    (line) => {
+      const trimmed = line.trim();
+      return trimmed !== '' && !trimmed.startsWith('---');
+    },
+  );
+  if (targetIdx === null) return null;
 
   const line = lines[targetIdx];
   // Don't inject if line already has a class annotation
@@ -132,26 +203,20 @@ export function injectClassAnnotation(source: string, lineNum: number, className
  * Used for verbatim blocks (core/html) where {.sN} annotations are literal text.
  * Returns the modified source, or null if already present or no tag found.
  */
-export function injectHtmlClassAttribute(source: string, lineNum: number, className: string): string | null {
+export function injectHtmlClassAttribute(source: string, lineNum: number, className: string, blockLine?: number): string | null {
   const lines = source.split('\n');
   const startIdx = lineNum - 1;
   if (startIdx < 0 || startIdx >= lines.length) return null;
 
-  // Scan backward to find the actual content line (same as injectClassAnnotation)
-  let targetIdx = startIdx;
-  while (targetIdx >= 0) {
-    const line = lines[targetIdx].trim();
-    if (line === '' || line.startsWith('---')) {
-      targetIdx--;
-      continue;
-    }
-    if (/^\w[\w-]*:\s/.test(line) && targetIdx > 0 && lines[targetIdx - 1].trim().startsWith('---')) {
-      targetIdx--;
-      continue;
-    }
-    break;
-  }
-  if (targetIdx < 0) return null;
+  const range = resolveBlockRange(lines, startIdx, blockLine);
+  if (!range) return null;
+  const targetIdx = findNearestLine(
+    lines,
+    range,
+    startIdx,
+    (line) => /^\s*<(?!\/)\w+/.test(line),
+  );
+  if (targetIdx === null) return null;
 
   const line = lines[targetIdx];
 
@@ -175,11 +240,88 @@ export function injectHtmlClassAttribute(source: string, lineNum: number, classN
  * Generate a unique block label (s1, s2, ...) that doesn't exist as a label in the source.
  */
 export function generateBlockLabel(source: string): string {
-  const existing = [...source.matchAll(/^---\s+[\w/]+:\s*s(\d+)/gm)];
-  const maxNum = existing.length > 0
-    ? Math.max(...existing.map(m => parseInt(m[1])))
+  const labelNums = [...source.matchAll(/^---\s+(?!\/)[^\s:"]+:\s*s(\d+)/gm)].map(m => parseInt(m[1], 10));
+  const classNums = [...source.matchAll(/\{\.s(\d+)\}/g)].map(m => parseInt(m[1], 10));
+  const nums = [...labelNums, ...classNums];
+  const maxNum = nums.length > 0
+    ? Math.max(...nums)
     : 0;
   return `s${maxNum + 1}`;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Find a block header line by block type + label in source.
+ * Returns 1-based line number, or null if not found.
+ */
+export function findBlockLineByTypeAndLabel(source: string, blockType: string, label: string): number | null {
+  const lines = source.split('\n');
+  const typeRe = escapeRegex(blockType);
+  const labelRe = escapeRegex(label);
+  const re = new RegExp(`^---\\s+${typeRe}:\\s*${labelRe}(?:\\s+"[^"]*")?\\s*$`);
+  for (let i = 0; i < lines.length; i++) {
+    if (re.test(lines[i].trim())) return i + 1;
+  }
+  return null;
+}
+
+interface BlockHeaderInfo {
+  line: number; // 1-based
+  type: string;
+  label?: string;
+}
+
+const BLOCK_HEADER_RE = /^---\s+((?!\/)[^\s:"]+)(?::\s*([^"]+?))?(?:\s+"[^"]*")?\s*$/;
+
+function parseBlockHeaders(source: string): BlockHeaderInfo[] {
+  const lines = source.split('\n');
+  const headers: BlockHeaderInfo[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].trim().match(BLOCK_HEADER_RE);
+    if (!m) continue;
+    headers.push({
+      line: i + 1,
+      type: m[1],
+      label: m[2]?.trim() || undefined,
+    });
+  }
+  return headers;
+}
+
+/**
+ * Get the 0-based occurrence index of a block (same type + same label state)
+ * at a given header line.
+ */
+export function findBlockOccurrenceAtLine(
+  source: string,
+  blockType: string,
+  line: number,
+  label?: string,
+): number | null {
+  const headers = parseBlockHeaders(source).filter(h =>
+    h.type === blockType && (h.label ?? undefined) === (label ?? undefined),
+  );
+  const idx = headers.findIndex(h => h.line === line);
+  return idx === -1 ? null : idx;
+}
+
+/**
+ * Resolve block header line by block type + occurrence index (+ label state).
+ */
+export function findBlockLineByTypeAndOccurrence(
+  source: string,
+  blockType: string,
+  occurrence: number,
+  label?: string,
+): number | null {
+  if (occurrence < 0) return null;
+  const headers = parseBlockHeaders(source).filter(h =>
+    h.type === blockType && (h.label ?? undefined) === (label ?? undefined),
+  );
+  return headers[occurrence]?.line ?? null;
 }
 
 /**
@@ -193,10 +335,10 @@ export function injectBlockLabel(source: string, blockLine: number, label: strin
   const idx = blockLine - 1;
   if (idx < 0 || idx >= lines.length) return null;
   const line = lines[idx];
-  // Match "--- blockType" without existing label
-  const match = line.match(/^(---\s+[\w/]+)\s*$/);
+  // Match "--- blockType" without existing label, optionally preserving quoted block name
+  const match = line.match(/^(---\s+(?!\/)[^\s:"]+)(\s+"[^"]*")?\s*$/);
   if (!match) return null; // already has a label or invalid format
-  lines[idx] = `${match[1]}: ${label}`;
+  lines[idx] = `${match[1]}: ${label}${match[2] ?? ''}`;
   return lines.join('\n');
 }
 

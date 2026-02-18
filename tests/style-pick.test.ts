@@ -4,8 +4,12 @@ import {
   extractBlockType,
   generateStyleClass,
   injectClassAnnotation,
+  injectHtmlClassAttribute,
   generateBlockLabel,
   injectBlockLabel,
+  findBlockLineByTypeAndLabel,
+  findBlockOccurrenceAtLine,
+  findBlockLineByTypeAndOccurrence,
   findSourceLine,
   resolveInlineElement,
 } from '../src/preview/target-detect';
@@ -257,6 +261,16 @@ describe('generateStyleClass', () => {
   it('handles source with no annotations', () => {
     expect(generateStyleClass('--- core/card\ntitle: Hello\n\nSome content')).toBe('s1');
   });
+
+  it('skips numbers already used by block labels', () => {
+    const src = '--- core/card: s1\ntitle: A\n\n- item {.s2}';
+    expect(generateStyleClass(src)).toBe('s3');
+  });
+
+  it('counts labels for block types with hyphens', () => {
+    const src = '--- custom-kit/card-item: s4\nBody {.s1}';
+    expect(generateStyleClass(src)).toBe('s5');
+  });
 });
 
 // ===== injectClassAnnotation =====
@@ -299,13 +313,28 @@ describe('injectClassAnnotation', () => {
     expect(lines[1]).toBe('- item {.s1}');
   });
 
-  it('skips block headers and scans backward', () => {
+  it('does not cross block boundary when target line is a block header', () => {
     const src = '--- core/text\ncontent here\n--- core/card\ntitle: Hello';
-    // Line 3 is "--- core/card", should scan back to line 2
+    // Line 3 is another block header; injection should not leak into line 2.
     const result = injectClassAnnotation(src, 3, 's1');
+    expect(result).toBeNull();
+  });
+
+  it('stays inside selected block when target line points at a header property', () => {
+    const src = [
+      '--- core/text',
+      'Prev paragraph',
+      '',
+      '--- newsletter/tipOfTheDay',
+      'title: Tutorial',
+      '',
+      'Main paragraph',
+    ].join('\n');
+    const result = injectClassAnnotation(src, 5, 's1', 4);
     expect(result).not.toBeNull();
     const lines = result!.split('\n');
-    expect(lines[1]).toBe('content here {.s1}');
+    expect(lines[1]).toBe('Prev paragraph');
+    expect(lines[6]).toBe('Main paragraph {.s1}');
   });
 
   it('does not double-inject on lines with existing class', () => {
@@ -327,6 +356,41 @@ describe('injectClassAnnotation', () => {
   });
 });
 
+// ===== injectHtmlClassAttribute =====
+
+describe('injectHtmlClassAttribute', () => {
+  it('stays inside selected block when target line points at a header property', () => {
+    const src = [
+      '--- core/html',
+      '<p>Prev</p>',
+      '',
+      '--- core/html',
+      'title: Current',
+      '',
+      '<p>Now</p>',
+    ].join('\n');
+    const result = injectHtmlClassAttribute(src, 5, 's1', 4);
+    expect(result).not.toBeNull();
+    const lines = result!.split('\n');
+    expect(lines[1]).toBe('<p>Prev</p>');
+    expect(lines[6]).toBe('<p class="s1">Now</p>');
+  });
+
+  it('returns null when no HTML tag line exists in selected block', () => {
+    const src = [
+      '--- core/html',
+      '<p>Prev</p>',
+      '',
+      '--- core/html',
+      'title: Current',
+      '',
+      'No tags here',
+    ].join('\n');
+    const result = injectHtmlClassAttribute(src, 5, 's1', 4);
+    expect(result).toBeNull();
+  });
+});
+
 // ===== generateBlockLabel =====
 
 describe('generateBlockLabel', () => {
@@ -342,6 +406,16 @@ describe('generateBlockLabel', () => {
   it('finds the max label number', () => {
     const src = '--- core/card: s5\ntitle: Test';
     expect(generateBlockLabel(src)).toBe('s6');
+  });
+
+  it('skips numbers already used by inline class annotations', () => {
+    const src = '--- core/card: s1\ntitle: A\n\nParagraph {.s2}';
+    expect(generateBlockLabel(src)).toBe('s3');
+  });
+
+  it('counts labels for block types with hyphens', () => {
+    const src = '--- custom-kit/card-item: s4\nBody {.s1}';
+    expect(generateBlockLabel(src)).toBe('s5');
   });
 });
 
@@ -395,6 +469,20 @@ describe('injectBlockLabel', () => {
     expect(result).not.toBeNull();
     expect(result!.split('\n')[0]).toBe('--- newsletter/item: s1');
   });
+
+  it('handles block types with hyphens', () => {
+    const src = '--- custom-kit/card-item\nSome content';
+    const result = injectBlockLabel(src, 1, 's1');
+    expect(result).not.toBeNull();
+    expect(result!.split('\n')[0]).toBe('--- custom-kit/card-item: s1');
+  });
+
+  it('preserves quoted trailing block name', () => {
+    const src = '--- core/text "Tip"\nBody';
+    const result = injectBlockLabel(src, 1, 's1');
+    expect(result).not.toBeNull();
+    expect(result!.split('\n')[0]).toBe('--- core/text: s1 "Tip"');
+  });
 });
 
 // ===== findSourceLine =====
@@ -438,5 +526,81 @@ describe('findSourceLine', () => {
     const result = findSourceLine(p, inner);
     expect(result).not.toBeNull();
     expect(result!.lineNum).toBe(3);
+  });
+});
+
+// ===== findBlockLineByTypeAndLabel =====
+
+describe('findBlockLineByTypeAndLabel', () => {
+  it('returns the 1-based line for matching block type + label', () => {
+    const src = [
+      '--- core/card: s1',
+      'title: A',
+      '',
+      '--- newsletter/item: s2',
+      'title: B',
+    ].join('\n');
+    expect(findBlockLineByTypeAndLabel(src, 'newsletter/item', 's2')).toBe(4);
+  });
+
+  it('returns null when block label is not found', () => {
+    const src = '--- core/card: s1\ntitle: A';
+    expect(findBlockLineByTypeAndLabel(src, 'core/card', 's9')).toBeNull();
+  });
+});
+
+// ===== occurrence-based tracking helpers =====
+
+describe('occurrence helpers', () => {
+  it('finds occurrence at a specific header line', () => {
+    const src = [
+      '--- core/text',
+      'A',
+      '',
+      '--- core/text',
+      'B',
+      '',
+      '--- core/text',
+      'C',
+    ].join('\n');
+    expect(findBlockOccurrenceAtLine(src, 'core/text', 4)).toBe(1);
+  });
+
+  it('finds occurrence for hyphenated block types', () => {
+    const src = [
+      '--- custom-kit/card-item',
+      'A',
+      '',
+      '--- custom-kit/card-item',
+      'B',
+    ].join('\n');
+    expect(findBlockOccurrenceAtLine(src, 'custom-kit/card-item', 4)).toBe(1);
+  });
+
+  it('maps type+occurrence to the matching new line', () => {
+    const oldSrc = [
+      '--- core/text',
+      'A',
+      '',
+      '--- core/text',
+      'B',
+    ].join('\n');
+    const occ = findBlockOccurrenceAtLine(oldSrc, 'core/text', 4);
+    expect(occ).toBe(1);
+
+    const newSrc = [
+      '--- use: core',
+      '',
+      '--- style',
+      'core/text',
+      '  color: #111',
+      '',
+      '--- core/text',
+      'A',
+      '',
+      '--- core/text',
+      'B',
+    ].join('\n');
+    expect(findBlockLineByTypeAndOccurrence(newSrc, 'core/text', occ!)).toBe(10);
   });
 });

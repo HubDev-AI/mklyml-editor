@@ -278,6 +278,59 @@ describe('patchStyleBlock: source integrity', () => {
 
     assertClean(currentSource);
   });
+
+  it('conditional cursor adjustment keeps selection when style block is below the selected block', () => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/heading',
+      'level: 2',
+      'Title',
+      '',
+      '--- style',
+      'core/heading',
+      '  color: #ff0000',
+      '',
+      '--- core/text',
+      'Body',
+    ].join('\n');
+
+    const selectedLine = source.split('\n').findIndex(l => l === '--- core/heading') + 1;
+    const graph = parseSourceStyleGraph(source);
+    const step = applyStyleChange(source, graph, 'core/heading', 'self', 'fontSize', '24px');
+
+    const adjustedLine = selectedLine > step.shiftAfterLine
+      ? selectedLine + step.lineDelta
+      : selectedLine;
+
+    const lines = step.newSource.split('\n');
+    expect(lines[adjustedLine - 1]).toBe('--- core/heading');
+  });
+
+  it('conditional cursor adjustment tracks selection when style block is above the selected block', () => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- style',
+      'core/heading',
+      '  color: #ff0000',
+      '',
+      '--- core/heading',
+      'level: 2',
+      'Title',
+    ].join('\n');
+
+    const selectedLine = source.split('\n').findIndex(l => l === '--- core/heading') + 1;
+    const graph = parseSourceStyleGraph(source);
+    const step = applyStyleChange(source, graph, 'core/heading', 'self', 'fontSize', '24px');
+
+    const adjustedLine = selectedLine > step.shiftAfterLine
+      ? selectedLine + step.lineDelta
+      : selectedLine;
+
+    const lines = step.newSource.split('\n');
+    expect(lines[adjustedLine - 1]).toBe('--- core/heading');
+  });
 });
 
 // ===== Label + Style Block Interaction =====
