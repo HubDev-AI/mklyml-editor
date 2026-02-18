@@ -4,6 +4,7 @@ import { StyleEditor } from './StyleEditor';
 import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
+import { resolveBlockLine } from '../store/selection-orchestrator';
 import { generateStyleClass, injectClassAnnotation, injectHtmlClassAttribute, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
 import { getBlockDisplayName } from '@mklyml/core';
 import { getBlockIcon, getBlockIconColor } from '../icons';
@@ -32,9 +33,6 @@ export function StylePopup({ completionData }: StylePopupProps) {
   const closeStylePopup = useEditorStore((s) => s.closeStylePopup);
   const styleGraph = useEditorStore((s) => s.styleGraph);
   const computedStyles = useEditorStore((s) => s.computedStyles);
-  const setSource = useEditorStore((s) => s.setSource);
-  const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
-  const focusBlock = useEditorStore((s) => s.focusBlock);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -171,16 +169,31 @@ export function StylePopup({ completionData }: StylePopupProps) {
     );
 
     const adjustedLine = blockLine + lineDelta;
-    setStyleGraph(newGraph);
-    setSource(newSource);
-    focusBlock(adjustedLine, 'inspector', 'edit-property');
 
-    // Keep popup's sourceLine in sync so subsequent changes use the correct line
-    const latestPopup = useEditorStore.getState().stylePopup;
-    if (latestPopup && lineDelta !== 0) {
-      useEditorStore.getState().openStylePopup({ ...latestPopup, sourceLine: adjustedLine });
-    }
-  }, [setSource, setStyleGraph, focusBlock]);
+    // Apply source + focus atomically so selection/target state does not flicker
+    // between source rewrite and cursor remap.
+    useEditorStore.setState((state) => {
+      const { blockLine: nextBlockLine, blockType: nextBlockType } = resolveBlockLine(adjustedLine, newSource);
+      return {
+        source: newSource,
+        styleGraph: newGraph,
+        cursorLine: adjustedLine,
+        activeBlockLine: nextBlockLine,
+        selection: {
+          blockLine: nextBlockLine,
+          blockType: nextBlockType,
+          propertyKey: state.selection.propertyKey,
+          contentRange: null,
+        },
+        focusOrigin: 'inspector',
+        focusVersion: state.focusVersion + 1,
+        focusIntent: 'edit-property' as const,
+        stylePopup: state.stylePopup && lineDelta !== 0
+          ? { ...state.stylePopup, sourceLine: adjustedLine }
+          : state.stylePopup,
+      };
+    });
+  }, [completionData]);
 
   if (!popup) return null;
 

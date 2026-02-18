@@ -12,6 +12,7 @@ import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
 import { applyPropertyChange, applyStyleChange } from '../store/block-properties';
+import { resolveBlockLine } from '../store/selection-orchestrator';
 import type { CursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@mklyml/core';
 
@@ -26,7 +27,6 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const activePresets = useDocumentPresets();
   const computedStyles = useEditorStore((s) => s.computedStyles);
   const styleGraph = useEditorStore((s) => s.styleGraph);
-  const setStyleGraph = useEditorStore((s) => s.setStyleGraph);
   const focusBlock = useEditorStore((s) => s.focusBlock);
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
@@ -64,10 +64,27 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
     // Adjust cursor for line shifts in the style block
     const adjustedCursor = currentCursor + lineDelta;
 
-    setStyleGraph(newGraph);
-    setSource(newSource);
-    focusBlock(adjustedCursor, 'inspector', 'edit-property');
-  }, [setSource, setStyleGraph, focusBlock]);
+    // Apply source + focus atomically so inspector selection doesn't briefly drop
+    // while source lines are shifted by style block updates.
+    useEditorStore.setState((state) => {
+      const { blockLine, blockType: nextBlockType } = resolveBlockLine(adjustedCursor, newSource);
+      return {
+        source: newSource,
+        styleGraph: newGraph,
+        cursorLine: adjustedCursor,
+        activeBlockLine: blockLine,
+        selection: {
+          blockLine,
+          blockType: nextBlockType,
+          propertyKey: state.selection.propertyKey,
+          contentRange: null,
+        },
+        focusOrigin: 'inspector',
+        focusVersion: state.focusVersion + 1,
+        focusIntent: 'edit-property' as const,
+      };
+    });
+  }, []);
 
   if (!cursorBlock) {
     return (
