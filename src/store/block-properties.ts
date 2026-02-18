@@ -4,6 +4,7 @@ import {
   serializeStyleGraph,
   parseStyleGraph,
   emptyStyleGraph,
+  getStyleValue,
 } from '@mklyml/core';
 import type { StyleGraph } from '@mklyml/core';
 
@@ -79,7 +80,16 @@ export function applyStyleChange(
   value: string,
   label?: string,
 ): PropertyChangeResult & { newGraph: StyleGraph; lineDelta: number } {
-  const graph = styleGraph ?? emptyStyleGraph();
+  let graph = styleGraph ?? emptyStyleGraph();
+
+  // Auto-inject border-style: solid when border-width is set without an existing border-style.
+  // CSS defaults border-style to 'none', making borders invisible even with width/color set.
+  if (prop === 'border-width' && value !== '') {
+    const existingStyle = getStyleValue(graph, blockType, target, 'border-style', label);
+    if (!existingStyle || existingStyle === 'none') {
+      graph = mergeRule(graph, blockType, target, 'border-style', 'solid', label);
+    }
+  }
 
   // Mutate the graph
   const newGraph = value === ''

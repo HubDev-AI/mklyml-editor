@@ -2,14 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '../store/editor-store';
 import { HtmlSourceEditor } from './HtmlSourceEditor';
 import { EditablePreview } from './EditablePreview';
+import { EmptyState } from './EmptyState';
 import { SyncEngine } from './SyncEngine';
 import { prettifyHtml } from './prettify-html';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 import { morphIframeContent } from './iframe-morph';
+import { getErrorHint } from './error-hints';
 
-export function PreviewPane() {
+interface PreviewPaneProps {
+  onInsertBlock?: (blockType: string) => void;
+}
+
+export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
+  const source = useEditorStore((s) => s.source);
   const html = useEditorStore((s) => s.html);
   const viewMode = useEditorStore((s) => s.viewMode);
   const outputMode = useEditorStore((s) => s.outputMode);
@@ -157,6 +164,9 @@ export function PreviewPane() {
     });
   }, [setSource]);
 
+  const hasContentBlocks = /^--- [\w-]+\/\w/m.test(source);
+  const showEmptyState = !hasContentBlocks && viewMode === 'preview' && onInsertBlock;
+
   return (
     <div style={{
       display: 'flex',
@@ -177,6 +187,7 @@ export function PreviewPane() {
           Email output is read-only — switch to Web to edit
         </div>
       )}
+      {showEmptyState && <EmptyState onInsertBlock={onInsertBlock} />}
       <iframe
         ref={iframeRef}
         title="Preview"
@@ -184,7 +195,7 @@ export function PreviewPane() {
           flex: 1,
           border: 'none',
           background: 'var(--ed-surface, #fff)',
-          display: viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email')
+          display: !showEmptyState && (viewMode === 'preview' || (viewMode === 'edit' && outputMode === 'email'))
             ? 'block' : 'none',
         }}
       />
@@ -254,29 +265,54 @@ export function PreviewPane() {
         </div>
       )}
       {errors.length > 0 && (
-        <div style={{
-          padding: '6px 14px',
-          background: 'var(--ed-error-bg)',
-          borderTop: '1px solid var(--ed-border)',
-          fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--ed-error-text)',
-          maxHeight: 100,
-          overflowY: 'auto',
-          flexShrink: 0,
-        }}>
-          {errors.map((err, i) => (
-            <p
-              key={i}
-              style={{
-                margin: '1px 0',
-                color: err.severity === 'warning' ? 'var(--ed-warning-text)' : undefined,
-              }}
-            >
-              {err.severity === 'warning' ? 'warn' : 'error'}: line {err.line}
-              {'blockType' in err ? ` [${err.blockType}]` : ''} — {err.message}
-            </p>
-          ))}
+        <div
+          data-error-panel
+          style={{
+            padding: '6px 14px',
+            background: 'var(--ed-error-bg)',
+            borderTop: '1px solid var(--ed-border)',
+            fontSize: 12,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            color: 'var(--ed-error-text)',
+            maxHeight: 120,
+            overflowY: 'auto',
+            flexShrink: 0,
+          }}
+        >
+          {errors.map((err, i) => {
+            const hint = getErrorHint(err.message);
+            return (
+              <div key={i} style={{ margin: '4px 0' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 6,
+                    color: err.severity === 'warning' ? 'var(--ed-warning-text)' : undefined,
+                  }}
+                >
+                  <span
+                    onClick={() => useEditorStore.getState().focusBlock(err.line, 'preview', 'navigate')}
+                    style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', opacity: 0.7, flexShrink: 0 }}
+                    title="Jump to line"
+                  >
+                    line {err.line}
+                  </span>
+                  <span>{hint.friendly}</span>
+                </div>
+                {hint.fix && (
+                  <div style={{ fontSize: 11, color: 'var(--ed-accent)', opacity: 0.85, marginLeft: 2, marginTop: 1 }}>
+                    {hint.fix}
+                  </div>
+                )}
+                {hint.friendly !== err.message && (
+                  <div style={{ fontSize: 10, color: 'var(--ed-text-muted)', opacity: 0.5, marginLeft: 2, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {err.message}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

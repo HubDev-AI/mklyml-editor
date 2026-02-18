@@ -35,6 +35,23 @@ export function EditorShell({ completionData, documentId, persistHistory }: Edit
 
   const handleInsertBlock = useCallback((blockName: string) => {
     const { source, cursorLine, focusBlock } = useEditorStore.getState();
+    const hasContentBlocks = /^--- [\w-]+\/\w/m.test(source);
+
+    if (!hasContentBlocks) {
+      // Build a fresh document with use directives + the block
+      const kit = blockName.split('/')[0];
+      const hasUse = new RegExp(`^--- use:\\s*${kit}`, 'm').test(source);
+      const parts: string[] = [];
+      if (!hasUse) parts.push(`--- use: ${kit}`);
+      parts.push(`\n--- ${blockName}\n`);
+      const trimmed = source.trimEnd();
+      const newSource = trimmed ? `${trimmed}\n\n${parts.join('\n')}` : parts.join('\n');
+      const newBlockLine = newSource.split('\n').length - 1;
+      setSource(newSource);
+      focusBlock(newBlockLine, 'block-dock');
+      return;
+    }
+
     const lines = source.split('\n');
     const insertLine = cursorLine - 1;
     const template = `\n--- ${blockName}\n`;
@@ -130,7 +147,7 @@ export function EditorShell({ completionData, documentId, persistHistory }: Edit
           }}
         >
           <EditorErrorBoundary name="Preview">
-            <PreviewPane />
+            <PreviewPane onInsertBlock={handleInsertBlock} />
           </EditorErrorBoundary>
         </div>
 

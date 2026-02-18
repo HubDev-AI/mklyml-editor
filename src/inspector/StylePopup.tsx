@@ -142,9 +142,10 @@ export function StylePopup({ completionData }: StylePopupProps) {
       }
     }
 
-    // BEM target ("link", "img") without a label — auto-assign a block label so the
-    // style only applies to this specific block instance, not all blocks of the same type.
-    if (workingTarget !== 'self' && !workingTarget.startsWith('self:') && !workingTarget.startsWith('>') && !workingLabel && popupData) {
+    // No label yet — auto-assign a block label so the style only applies to this
+    // specific block instance, not all blocks of the same type. This applies to ALL
+    // targets in style pick mode (self, BEM, tag), ensuring per-instance scoping.
+    if (!workingLabel && popupData) {
       const newLabel = generateBlockLabel(workingSource);
       const labeled = injectBlockLabel(workingSource, popupData.sourceLine, newLabel);
       if (labeled) {
