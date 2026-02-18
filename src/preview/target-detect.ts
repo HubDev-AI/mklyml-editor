@@ -128,6 +128,50 @@ export function injectClassAnnotation(source: string, lineNum: number, className
 }
 
 /**
+ * Inject a class="className" directly into an HTML tag on a specific source line.
+ * Used for verbatim blocks (core/html) where {.sN} annotations are literal text.
+ * Returns the modified source, or null if already present or no tag found.
+ */
+export function injectHtmlClassAttribute(source: string, lineNum: number, className: string): string | null {
+  const lines = source.split('\n');
+  const startIdx = lineNum - 1;
+  if (startIdx < 0 || startIdx >= lines.length) return null;
+
+  // Scan backward to find the actual content line (same as injectClassAnnotation)
+  let targetIdx = startIdx;
+  while (targetIdx >= 0) {
+    const line = lines[targetIdx].trim();
+    if (line === '' || line.startsWith('---')) {
+      targetIdx--;
+      continue;
+    }
+    if (/^\w[\w-]*:\s/.test(line) && targetIdx > 0 && lines[targetIdx - 1].trim().startsWith('---')) {
+      targetIdx--;
+      continue;
+    }
+    break;
+  }
+  if (targetIdx < 0) return null;
+
+  const line = lines[targetIdx];
+
+  // Already has this class?
+  if (new RegExp(`class="[^"]*\\b${className}\\b`).test(line)) return null;
+
+  // Has existing class attribute — append
+  if (/class="[^"]*"/.test(line)) {
+    lines[targetIdx] = line.replace(/class="([^"]*)"/, `class="$1 ${className}"`);
+    return lines.join('\n');
+  }
+
+  // No class attr — add after tag name
+  const tagMatch = line.match(/^(\s*<\w+)/);
+  if (!tagMatch) return null;
+  lines[targetIdx] = line.replace(/^(\s*<\w+)/, `$1 class="${className}"`);
+  return lines.join('\n');
+}
+
+/**
  * Generate a unique block label (s1, s2, ...) that doesn't exist as a label in the source.
  */
 export function generateBlockLabel(source: string): string {

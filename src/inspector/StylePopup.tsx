@@ -4,7 +4,7 @@ import { StyleEditor } from './StyleEditor';
 import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
-import { generateStyleClass, injectClassAnnotation, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
+import { generateStyleClass, injectClassAnnotation, injectHtmlClassAttribute, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
 import { getBlockDisplayName } from '@mklyml/core';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
@@ -129,11 +129,15 @@ export function StylePopup({ completionData }: StylePopupProps) {
     let workingTarget = target;
     let workingLabel = label;
 
-    // Plain tag target (">li", ">p") without class — inject {.sN} on first style change.
-    // This keeps the annotation out of the source until a style is actually applied.
+    // Plain tag target (">li", ">p") without class — inject class on first style change.
+    // For verbatim blocks (core/html), inject class="sN" into the HTML tag directly.
+    // For other blocks, inject {.sN} mkly annotation.
     if (/^>[a-z]/.test(workingTarget) && popupData?.targetLine !== undefined) {
       const className = generateStyleClass(workingSource);
-      const injected = injectClassAnnotation(workingSource, popupData.targetLine, className);
+      const isVerbatim = completionData.contentModes.get(blockType) === 'verbatim';
+      const injected = isVerbatim
+        ? injectHtmlClassAttribute(workingSource, popupData.targetLine, className)
+        : injectClassAnnotation(workingSource, popupData.targetLine, className);
       if (injected) {
         workingSource = injected;
         workingTarget = `>.${className}`;
