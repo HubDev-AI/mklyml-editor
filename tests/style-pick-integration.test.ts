@@ -3,6 +3,7 @@ import { mkly, emptyStyleGraph, CORE_KIT } from '@mklyml/core';
 import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 import { applyStyleChange } from '../src/store/block-properties';
 import { parseSourceStyleGraph } from '../src/store/block-properties';
+import { applyCompileCompat } from '../src/store/compile-compat';
 import {
   generateStyleClass,
   injectClassAnnotation,
@@ -14,7 +15,13 @@ const KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
 
 /** Compile mkly source and assert no fatal errors. */
 function compile(source: string) {
-  return mkly(source, { kits: KITS, sourceMap: true });
+  const result = mkly(source, { kits: KITS, sourceMap: true });
+  const styleGraph = parseSourceStyleGraph(source);
+  return {
+    ...result,
+    styleGraph,
+    html: applyCompileCompat(source, result.html, styleGraph),
+  };
 }
 
 /** Common preamble with meta block. */

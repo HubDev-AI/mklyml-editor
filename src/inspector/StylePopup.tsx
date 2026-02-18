@@ -4,7 +4,16 @@ import { StyleEditor } from './StyleEditor';
 import { EditorErrorBoundary } from '../layout/EditorErrorBoundary';
 import { useEditorStore } from '../store/editor-store';
 import { applyStyleChange } from '../store/block-properties';
-import { generateStyleClass, injectClassAnnotation, injectHtmlClassAttribute, generateBlockLabel, injectBlockLabel } from '../preview/target-detect';
+import {
+  generateStyleClass,
+  injectClassAnnotation,
+  injectHtmlClassAttribute,
+  generateBlockLabel,
+  injectBlockLabel,
+  findBlockLineByTypeAndLabel,
+  findBlockOccurrenceAtLine,
+  findBlockLineByTypeAndOccurrence,
+} from '../preview/target-detect';
 import { getBlockDisplayName } from '@mklyml/core';
 import { getBlockIcon, getBlockIconColor } from '../icons';
 import { KitBadge } from '../ui/kit-badge';
@@ -126,8 +135,12 @@ export function StylePopup({ completionData }: StylePopupProps) {
     const currentGraph = useEditorStore.getState().styleGraph;
     const popupData = useEditorStore.getState().stylePopup;
     const blockLine = popupData?.sourceLine ?? useEditorStore.getState().cursorLine;
+    const originalLabel = popupData?.label ?? label;
     let workingTarget = target;
     let workingLabel = label;
+    let nextPopup = popupData ? { ...popupData } : null;
+    let popupChanged = false;
+    const originalOccurrence = findBlockOccurrenceAtLine(workingSource, blockType, blockLine, originalLabel);
 
     // Plain tag target (">li", ">p") without class — inject class on first style change.
     // For verbatim blocks (core/html), inject class="sN" into the HTML tag directly.
@@ -136,13 +149,17 @@ export function StylePopup({ completionData }: StylePopupProps) {
       const className = generateStyleClass(workingSource);
       const isVerbatim = completionData.contentModes.get(blockType) === 'verbatim';
       const injected = isVerbatim
-        ? injectHtmlClassAttribute(workingSource, popupData.targetLine, className)
-        : injectClassAnnotation(workingSource, popupData.targetLine, className);
+        ? injectHtmlClassAttribute(workingSource, popupData.targetLine, className, popupData.sourceLine)
+        : injectClassAnnotation(workingSource, popupData.targetLine, className, popupData.sourceLine);
       if (injected) {
         workingSource = injected;
         workingTarget = `>.${className}`;
-        // Update popup so subsequent changes reuse this class
-        useEditorStore.getState().openStylePopup({ ...popupData, target: workingTarget, targetLine: undefined });
+        if (nextPopup) {
+          nextPopup.target = workingTarget;
+          nextPopup.targetLine = undefined;
+          nextPopup.targetIndex = undefined;
+          popupChanged = true;
+        }
       }
     }
 
@@ -155,12 +172,14 @@ export function StylePopup({ completionData }: StylePopupProps) {
       if (labeled) {
         workingSource = labeled;
         workingLabel = newLabel;
-        // Update popup so subsequent changes reuse this label
-        useEditorStore.getState().openStylePopup({ ...popupData, label: newLabel });
+        if (nextPopup) {
+          nextPopup.label = newLabel;
+          popupChanged = true;
+        }
       }
     }
 
-    const { newSource, newGraph, lineDelta } = applyStyleChange(
+    const { newSource, newGraph } = applyStyleChange(
       workingSource,
       currentGraph,
       blockType,
@@ -170,15 +189,26 @@ export function StylePopup({ completionData }: StylePopupProps) {
       workingLabel,
     );
 
-    const adjustedLine = blockLine + lineDelta;
+    const resolvedLine = workingLabel
+      ? findBlockLineByTypeAndLabel(newSource, blockType, workingLabel)
+      : (originalOccurrence !== null
+          ? findBlockLineByTypeAndOccurrence(newSource, blockType, originalOccurrence, originalLabel)
+          : null);
     setStyleGraph(newGraph);
     setSource(newSource);
-    focusBlock(adjustedLine, 'inspector', 'edit-property');
+    if (resolvedLine !== null) {
+      focusBlock(resolvedLine, 'inspector', 'edit-property');
+    }
 
-    // Keep popup's sourceLine in sync so subsequent changes use the correct line
-    const latestPopup = useEditorStore.getState().stylePopup;
-    if (latestPopup && lineDelta !== 0) {
-      useEditorStore.getState().openStylePopup({ ...latestPopup, sourceLine: adjustedLine });
+    // Keep popup in sync so subsequent changes keep targeting the same element instance.
+    if (nextPopup) {
+      if (resolvedLine !== null && resolvedLine !== blockLine) {
+        nextPopup.sourceLine = resolvedLine;
+        popupChanged = true;
+      }
+      if (popupChanged) {
+        useEditorStore.getState().openStylePopup(nextPopup);
+      }
     }
   }, [setSource, setStyleGraph, focusBlock]);
 

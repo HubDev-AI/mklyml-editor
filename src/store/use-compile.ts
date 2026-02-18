@@ -4,6 +4,8 @@ import type { ParseError } from '@mklyml/core';
 import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
 import { emailPlugin } from '@mklyml/plugins/email';
 import { useEditorStore } from './editor-store';
+import { parseSourceStyleGraph } from './block-properties';
+import { applyCompileCompat } from './compile-compat';
 
 const KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
 
@@ -115,6 +117,8 @@ export function useCompile() {
           plugins: outputMode === 'email' ? [emailPlugin()] : [],
           sourceMap: true,
         });
+        const parsedStyleGraph = parseSourceStyleGraph(source);
+        const compatHtml = applyCompileCompat(source, result.html, parsedStyleGraph);
 
         const { isNormalized, normalizationWarnings } = useEditorStore.getState();
 
@@ -128,37 +132,37 @@ export function useCompile() {
 
             if (normalized.trim() !== source.trim()) {
               // Set the normalized source — this will trigger a recompile
-              setHtml(result.html);
+              setHtml(compatHtml);
               setErrors([...result.errors, ...warnings]);
               setSourceMap(result.sourceMap ?? null);
-              setStyleGraph(result.styleGraph ?? null);
+              setStyleGraph(parsedStyleGraph);
               useEditorStore.getState().setSource(normalized);
               return;
             }
             // Source already stable, just merge warnings
-            setHtml(result.html);
+            setHtml(compatHtml);
             setErrors([...result.errors, ...warnings]);
             setSourceMap(result.sourceMap ?? null);
-            setStyleGraph(result.styleGraph ?? null);
+            setStyleGraph(parsedStyleGraph);
           } catch {
             // Normalization failed, use original source as-is
-            setHtml(result.html);
+            setHtml(compatHtml);
             setErrors(result.errors);
             setSourceMap(result.sourceMap ?? null);
-            setStyleGraph(result.styleGraph ?? null);
+            setStyleGraph(parsedStyleGraph);
           }
           return;
         }
 
         // Normal compile — include persistent normalization warnings
-        setHtml(result.html);
+        setHtml(compatHtml);
         setErrors(
           normalizationWarnings.length > 0
             ? [...result.errors, ...normalizationWarnings]
             : result.errors,
         );
         setSourceMap(result.sourceMap ?? null);
-        setStyleGraph(result.styleGraph ?? null);
+        setStyleGraph(parsedStyleGraph);
       } catch (e) {
         setHtml(`<html><body style="margin:0;background:#fff;color:#dc2626;font-family:monospace;padding:16px;"><pre style="white-space:pre-wrap;">${escapeHtml(String(e))}</pre></body></html>`);
         setErrors([]);

@@ -12,6 +12,7 @@ import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
 import { applyPropertyChange, applyStyleChange } from '../store/block-properties';
+import { findBlockLineByTypeAndLabel, findBlockOccurrenceAtLine, findBlockLineByTypeAndOccurrence } from '../preview/target-detect';
 import type { CursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@mklyml/core';
 
@@ -50,8 +51,11 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
     const currentSource = useEditorStore.getState().source;
     const currentGraph = useEditorStore.getState().styleGraph;
     const currentCursor = useEditorStore.getState().cursorLine;
+    const sourceBlockLine = cursorBlock?.startLine ?? currentCursor;
+    const sourceLabel = cursorBlock?.label ?? label;
+    const sourceOccurrence = findBlockOccurrenceAtLine(currentSource, blockType, sourceBlockLine, sourceLabel);
 
-    const { newSource, newGraph, lineDelta } = applyStyleChange(
+    const { newSource, newGraph } = applyStyleChange(
       currentSource,
       currentGraph,
       blockType,
@@ -61,13 +65,18 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       label,
     );
 
-    // Adjust cursor for line shifts in the style block
-    const adjustedCursor = currentCursor + lineDelta;
+    const resolvedLine = sourceLabel
+      ? findBlockLineByTypeAndLabel(newSource, blockType, sourceLabel)
+      : (sourceOccurrence !== null
+          ? findBlockLineByTypeAndOccurrence(newSource, blockType, sourceOccurrence, sourceLabel)
+          : null);
 
     setStyleGraph(newGraph);
     setSource(newSource);
-    focusBlock(adjustedCursor, 'inspector', 'edit-property');
-  }, [setSource, setStyleGraph, focusBlock]);
+    if (resolvedLine !== null) {
+      focusBlock(resolvedLine, 'inspector', 'edit-property');
+    }
+  }, [setSource, setStyleGraph, focusBlock, cursorBlock]);
 
   if (!cursorBlock) {
     return (
