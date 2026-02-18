@@ -34,47 +34,56 @@ function clampLine(line: number, source: string): number {
   return Math.max(1, Math.min(line, total));
 }
 
-function findLiveStyleSelection(selectionId: string, target: string): {
+function buildLiveSelectionSnapshot(
+  selectedEl: Element,
+  target: string,
+): {
   blockLine: number;
   targetLine?: number;
   targetIndex?: number;
 } | null {
+  const blockEl = selectedEl.closest<HTMLElement>('[data-mkly-id][data-mkly-line]');
+  if (!blockEl?.dataset.mklyLine) return null;
+
+  const blockLine = Number(blockEl.dataset.mklyLine);
+  const snapshot: { blockLine: number; targetLine?: number; targetIndex?: number } = { blockLine };
+
+  const lineFromTarget = findSourceLine(selectedEl, blockEl);
+  if (lineFromTarget) {
+    snapshot.targetLine = lineFromTarget.lineNum;
+  }
+
+  if (/^>[a-z]/.test(target)) {
+    const tag = target.slice(1);
+    const all = blockEl.querySelectorAll(tag);
+    for (let i = 0; i < all.length; i++) {
+      if (all[i] === selectedEl || all[i].contains(selectedEl)) {
+        snapshot.targetIndex = i;
+        break;
+      }
+    }
+  }
+
+  return snapshot;
+}
+
+function findLiveStyleSelection(selectionId: string | undefined, target: string): {
+  blockLine: number;
+  targetLine?: number;
+  targetIndex?: number;
+} | null {
+  if (!selectionId) return null;
   const iframes = document.querySelectorAll('iframe');
   for (const iframeEl of iframes) {
     const doc = (iframeEl as HTMLIFrameElement).contentDocument;
     if (!doc) continue;
 
-    let selectedEl: Element | null = null;
     for (const candidate of doc.querySelectorAll(`[${STYLE_SELECTED_ATTR}]`)) {
       if (candidate.getAttribute(STYLE_SELECTED_ATTR) === selectionId) {
-        selectedEl = candidate;
-        break;
+        const snapshot = buildLiveSelectionSnapshot(candidate, target);
+        if (snapshot) return snapshot;
       }
     }
-    if (!selectedEl) continue;
-
-    const blockEl = selectedEl.closest<HTMLElement>('[data-mkly-id][data-mkly-line]');
-    if (!blockEl?.dataset.mklyLine) continue;
-
-    const blockLine = Number(blockEl.dataset.mklyLine);
-    const snapshot: { blockLine: number; targetLine?: number; targetIndex?: number } = { blockLine };
-
-    if (/^>[a-z]/.test(target)) {
-      const sl = findSourceLine(selectedEl, blockEl);
-      if (!sl) return null;
-      snapshot.targetLine = sl.lineNum;
-
-      const tag = target.slice(1);
-      const all = blockEl.querySelectorAll(tag);
-      for (let i = 0; i < all.length; i++) {
-        if (all[i] === selectedEl || all[i].contains(selectedEl)) {
-          snapshot.targetIndex = i;
-          break;
-        }
-      }
-    }
-
-    return snapshot;
   }
   return null;
 }
@@ -180,10 +189,26 @@ export function StylePopup({ completionData }: StylePopupProps) {
     let workingTargetLine = popupData?.targetLine;
     const nextPopup = popupData ? { ...popupData } : null;
 
-    if (popupData?.selectionId) {
+    if (popupData) {
       const liveSelection = findLiveStyleSelection(popupData.selectionId, popupData.target);
       if (!liveSelection) {
-        console.warn('[mkly-style] Missing style selection marker, aborting style update.');
+        console.warn('[mkly-style] Missing style selection marker for popup selectionId, retargeting popup to block self.');
+        useEditorStore.setState((state) => {
+          if (!state.stylePopup) return state;
+          const nextBlockLine = state.activeBlockLine ?? state.stylePopup.sourceLine;
+          return {
+            stylePopup: {
+              ...state.stylePopup,
+              sourceLine: nextBlockLine,
+              blockType: state.selection.blockType ?? state.stylePopup.blockType,
+              target: 'self',
+              label: undefined,
+              targetLine: undefined,
+              targetIndex: undefined,
+              selectionId: state.selectionId ?? state.stylePopup.selectionId,
+            },
+          };
+        });
         return;
       }
       blockLine = liveSelection.blockLine;
@@ -215,7 +240,7 @@ export function StylePopup({ completionData }: StylePopupProps) {
         // Persist class target in popup state for subsequent edits.
         if (nextPopup) {
           nextPopup.target = workingTarget;
-          nextPopup.targetLine = undefined;
+          nextPopup.targetLine = workingTargetLine;
         }
       }
     }
@@ -244,18 +269,24 @@ export function StylePopup({ completionData }: StylePopupProps) {
       workingLabel,
     );
 
-    const adjustedLine = adjustLineForStylePatch(blockLine, lineDelta, lineShiftFrom);
+    const adjustedBlockLine = clampLine(
+      adjustLineForStylePatch(blockLine, lineDelta, lineShiftFrom),
+      newSource,
+    );
+    const adjustedTargetLine = workingTargetLine !== undefined
+      ? clampLine(adjustLineForStylePatch(workingTargetLine, lineDelta, lineShiftFrom), newSource)
+      : undefined;
+    const nextCursorLine = adjustedTargetLine ?? adjustedBlockLine;
 
     // Apply source + focus atomically so selection/target state does not flicker
     // between source rewrite and cursor remap.
     useEditorStore.setState((state) => {
-      const remappedLine = clampLine(adjustedLine, newSource);
-      const { blockLine: nextBlockLine, blockType: nextBlockType } = resolveBlockLine(remappedLine, newSource);
+      const { blockLine: nextBlockLine, blockType: nextBlockType } = resolveBlockLine(nextCursorLine, newSource);
       const popupToKeep = nextPopup ?? state.stylePopup;
       return {
         source: newSource,
         styleGraph: newGraph,
-        cursorLine: remappedLine,
+        cursorLine: nextCursorLine,
         activeBlockLine: nextBlockLine,
         selection: {
           blockLine: nextBlockLine,
@@ -269,10 +300,10 @@ export function StylePopup({ completionData }: StylePopupProps) {
         stylePopup: popupToKeep
           ? {
               ...popupToKeep,
-              sourceLine: remappedLine,
+              sourceLine: adjustedBlockLine,
               targetLine: popupToKeep.targetLine !== undefined
-                ? adjustLineForStylePatch(popupToKeep.targetLine, lineDelta, lineShiftFrom)
-                : popupToKeep.targetLine,
+                ? clampLine(adjustLineForStylePatch(popupToKeep.targetLine, lineDelta, lineShiftFrom), newSource)
+                : adjustedTargetLine,
             }
           : popupToKeep,
       };

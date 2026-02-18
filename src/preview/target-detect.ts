@@ -4,6 +4,8 @@ export const INLINE_TAGS = new Set([
   'mark', 'small', 'b', 'i', 'u', 'abbr', 'del', 'ins', 'br',
 ]);
 
+const GENERIC_WRAPPER_TAGS = new Set(['div', 'section', 'article', 'main']);
+
 /**
  * Walk up from an inline element to the nearest block-level ancestor
  * within the given root. Returns the element unchanged if it's not inline.
@@ -22,10 +24,11 @@ export function resolveInlineElement(el: Element, root: Element): Element {
  *
  * Priority:
  * 1. Style class annotation on clicked element (e.g., class="s1" → ">.s1")
- * 2. BEM `__target` class (e.g., mkly-core-card__img → "img") — walks up from clicked
- * 3. Resolve inline elements (strong, em, a, span, etc.) to block-level parent
- * 4. Style class annotation on resolved parent (e.g., <em> inside <li class="s1">)
- * 5. Tag-name fallback → ">p", ">h2", etc.
+ * 2. Resolve inline elements (strong, em, a, span, etc.) to block-level parent
+ * 3. Style class annotation on resolved parent (e.g., <em> inside <li class="s1">)
+ * 4. BEM `__target` on the resolved element itself (e.g., mkly-core-card__img → "img")
+ * 5. Exact content element fallback for elements with source lines (>p, >li, >h2, ...)
+ * 6. Ancestor BEM fallback (container targets like "body") only when exact element targeting isn't possible
  */
 export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   if (clickedEl === blockRootEl) return 'self';
@@ -34,25 +37,7 @@ export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   const styleClass = [...clickedEl.classList].find(c => /^s\d+$/.test(c));
   if (styleClass) return `>.${styleClass}`;
 
-  const baseClass = [...blockRootEl.classList].find(c =>
-    c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'),
-  );
-
-  // Walk from clicked element up to block root, looking for BEM __target
-  if (baseClass) {
-    let el: Element | null = clickedEl;
-    while (el && el !== blockRootEl) {
-      const targetClass = [...el.classList].find(c =>
-        c.startsWith(baseClass + '__'),
-      );
-      if (targetClass) {
-        return targetClass.slice(baseClass.length + 2); // after "__"
-      }
-      el = el.parentElement;
-    }
-  }
-
-  // No BEM/class found — resolve inline elements to block-level parent
+  // Resolve inline elements to block-level parent first.
   const resolved = resolveInlineElement(clickedEl, blockRootEl);
   if (resolved === blockRootEl) return 'self';
 
@@ -60,12 +45,42 @@ export function detectTarget(clickedEl: Element, blockRootEl: Element): string {
   const resolvedStyleClass = [...resolved.classList].find(c => /^s\d+$/.test(c));
   if (resolvedStyleClass) return `>.${resolvedStyleClass}`;
 
-  // Tag-name fallback — "self" for generic wrappers, ">tag" for content elements
-  const tag = resolved.tagName.toLowerCase();
-  if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'main') {
-    return 'self';
+  const baseClass = [...blockRootEl.classList].find(c =>
+    c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'),
+  );
+
+  if (baseClass) {
+    // Prefer exact BEM target when the resolved element itself is the semantic target.
+    const resolvedTargetClass = [...resolved.classList].find(c =>
+      c.startsWith(baseClass + '__'),
+    );
+    if (resolvedTargetClass) {
+      return resolvedTargetClass.slice(baseClass.length + 2);
+    }
   }
 
+  // Prefer exact content element targeting for line-mapped descendants.
+  const tag = resolved.tagName.toLowerCase();
+  if (resolved.hasAttribute('data-mkly-line') && !GENERIC_WRAPPER_TAGS.has(tag)) {
+    return `>${tag}`;
+  }
+
+  if (baseClass) {
+    // Ancestor BEM fallback for structural/property-driven elements that don't map
+    // cleanly to a line-targetable content element.
+    let el: Element | null = resolved.parentElement;
+    while (el && el !== blockRootEl) {
+      const targetClass = [...el.classList].find(c =>
+        c.startsWith(baseClass + '__'),
+      );
+      if (targetClass) {
+        return targetClass.slice(baseClass.length + 2);
+      }
+      el = el.parentElement;
+    }
+  }
+
+  if (GENERIC_WRAPPER_TAGS.has(tag)) return 'self';
   return `>${tag}`;
 }
 

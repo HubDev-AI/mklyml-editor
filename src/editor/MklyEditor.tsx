@@ -15,8 +15,9 @@ import { blockColorPlugin } from './block-color-plugin';
 import { blockDeletePlugin } from './block-delete-plugin';
 import { applyExternalUpdate } from './diff-update';
 import { clearPendingScroll } from './safe-dispatch';
-import { shouldScrollToBlock } from '../store/selection-orchestrator';
+import { shouldScrollToBlock, resolveBlockLine } from '../store/selection-orchestrator';
 import { parseCursorBlock } from '../store/use-cursor-context';
+import { PROPERTY_KEY_RE } from '../store/block-properties';
 import type { CompletionData } from '@mklyml/core';
 
 interface MklyEditorProps {
@@ -67,6 +68,27 @@ const dropLineField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+function inferStylePickTargetFromSourceLine(
+  lineText: string,
+): { target: string; targetLine?: number } {
+  const trimmed = lineText.trim();
+  if (!trimmed || trimmed.startsWith('---') || PROPERTY_KEY_RE.test(trimmed)) {
+    return { target: 'self' };
+  }
+
+  const classMatch = trimmed.match(/\{\.([A-Za-z][\w-]*)\}\s*$/);
+  if (classMatch) return { target: `>.${classMatch[1]}` };
+
+  const headingMatch = trimmed.match(/^(#{1,6})\s+/);
+  if (headingMatch) return { target: `>h${headingMatch[1].length}` };
+
+  if (/^(?:[-*+]\s+|\d+\.\s+)/.test(trimmed)) {
+    return { target: '>li' };
+  }
+
+  return { target: '>p' };
+}
+
 export function MklyEditor({ completionData }: MklyEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -76,9 +98,8 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
   const errors = useEditorStore((s) => s.errors);
   const theme = useEditorStore((s) => s.theme);
   const setSource = useEditorStore((s) => s.setSource);
-  const setCursorLine = useEditorStore((s) => s.setCursorLine);
   const setBlockDockOpen = useEditorStore((s) => s.setBlockDockOpen);
-  const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
+  const cursorLine = useEditorStore((s) => s.cursorLine);
   const focusOrigin = useEditorStore((s) => s.focusOrigin);
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const focusIntent = useEditorStore((s) => s.focusIntent);
@@ -158,6 +179,8 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
           }
           // Only fire focusBlock when user actively moves cursor (not on doc changes or external updates)
           if (update.selectionSet && !update.docChanged && update.view.hasFocus) {
+            // Local cursor movement takes ownership of highlighting immediately.
+            update.view.dispatch({ effects: setHighlightEffect.of(null) });
             const pos = update.state.selection.main.head;
             const line = update.state.doc.lineAt(pos);
             useEditorStore.getState().focusBlock(line.number, 'mkly');
@@ -215,41 +238,36 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
     isExternalRef.current = false;
   }, [source]);
 
-  // React to activeBlockLine changes from OTHER tabs:
-  // ALWAYS highlight, CONDITIONAL scroll (skip for own focus, edit-property, scrollLock)
+  // React to external focus changes from OTHER tabs:
+  // ALWAYS highlight exact selected line (cursorLine), CONDITIONAL scroll.
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || activeBlockLine === null) return;
+    if (!view) return;
     // Skip if this is our own focus event
     if (focusOrigin === 'mkly') return;
     // Skip if we've already reacted to this focus version
     if (focusVersion === lastFocusVersionRef.current) return;
     lastFocusVersionRef.current = focusVersion;
 
-    const lineNum = Math.min(activeBlockLine, view.state.doc.lines);
+    const lineNum = Math.max(1, Math.min(cursorLine, view.state.doc.lines));
     if (lineNum < 1) return;
 
     clearPendingScroll(view);
 
     // ALWAYS highlight
+    const line = view.state.doc.line(lineNum);
     view.dispatch({
-      effects: setHighlightEffect.of(activeBlockLine),
+      selection: { anchor: line.from },
+      effects: setHighlightEffect.of(lineNum),
     });
 
     // CONDITIONAL scroll via orchestrator
     if (shouldScrollToBlock(focusOrigin, 'mkly', focusIntent, scrollLock)) {
-      const line = view.state.doc.line(lineNum);
       view.dispatch({
         effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
       });
     }
-
-    const timer = setTimeout(() => {
-      clearPendingScroll(view);
-      view.dispatch({ effects: setHighlightEffect.of(null) });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [activeBlockLine, focusOrigin, focusVersion, focusIntent, scrollLock]);
+  }, [cursorLine, focusOrigin, focusVersion, focusIntent, scrollLock]);
 
   const dropLineRef = useRef<number | null>(null);
 
@@ -367,17 +385,27 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
       const source = view.state.doc.toString();
       const block = parseCursorBlock(source, line.number);
       if (!block || block.isSpecial) return;
+      const { blockLine } = resolveBlockLine(line.number, source);
+      if (blockLine === null) return;
 
       const coords = view.coordsAtPos(pos);
       if (!coords) return;
 
+      const inferred = inferStylePickTargetFromSourceLine(line.text);
+      const targetLine = inferred.target.startsWith('>')
+        ? line.number
+        : undefined;
+
       const store = useEditorStore.getState();
       store.focusBlock(line.number, 'mkly');
+      const selectionId = useEditorStore.getState().selectionId ?? undefined;
       store.openStylePopup({
         blockType: block.type,
-        target: 'self',
+        target: inferred.target,
         label: block.label,
-        sourceLine: line.number,
+        sourceLine: blockLine,
+        targetLine,
+        selectionId,
         anchorRect: {
           x: coords.left,
           y: coords.top,

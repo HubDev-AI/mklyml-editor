@@ -92,6 +92,27 @@ async function getSource(page: Page): Promise<string> {
   });
 }
 
+/** Minimal selection snapshot from store for sync assertions. */
+async function getSelectionState(page: Page): Promise<{
+  cursorLine: number;
+  activeBlockLine: number | null;
+  focusOrigin: string | null;
+  selectionId: string | null;
+  stylePickMode: boolean;
+}> {
+  return page.evaluate(() => {
+    // @ts-ignore
+    const s = window.__editorStore.getState();
+    return {
+      cursorLine: s.cursorLine,
+      activeBlockLine: s.activeBlockLine,
+      focusOrigin: s.focusOrigin,
+      selectionId: s.selectionId,
+      stylePickMode: s.stylePickMode,
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 1. SMOKE TESTS
 // ---------------------------------------------------------------------------
@@ -476,6 +497,66 @@ test.describe('Block Click & Focus Sync', () => {
       const secondLine = await frame.locator('[data-mkly-active]').getAttribute('data-mkly-line');
       expect(secondLine).not.toBe(firstLine);
     }
+  });
+
+  test('focusing a content line keeps exact element selected in preview', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'First paragraph.',
+      '',
+      '--- core/text',
+      'Second paragraph.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.evaluate(() => {
+      // @ts-ignore
+      window.__editorStore.getState().focusBlock(7, 'mkly', 'navigate');
+    });
+    await page.waitForTimeout(400);
+
+    const frame = preview(page);
+    const activeLine = await frame.locator('[data-mkly-active]').first().getAttribute('data-mkly-line');
+    expect(activeLine).toBe('7');
+  });
+
+  test('focusing a content line in code highlights matching element region in HTML pane', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'First paragraph.',
+      '',
+      '--- core/text',
+      'Second paragraph.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    // Switch to HTML and back to code to ensure HTML pane is mounted and sync listeners are active.
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: 'Preview', exact: true }).first().click();
+    await page.waitForTimeout(300);
+
+    // Focus second paragraph line from source editor.
+    await page.evaluate(() => {
+      // @ts-ignore
+      window.__editorStore.getState().focusBlock(7, 'mkly', 'navigate');
+    });
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    await page.waitForTimeout(400);
+
+    const htmlEditor = page.locator('.cm-content').nth(1);
+    const highlightedWithText = htmlEditor.locator('.cm-line.mkly-highlight-line').filter({
+      hasText: 'Second paragraph.',
+    });
+    await expect(highlightedWithText.first()).toBeVisible();
   });
 });
 
@@ -1238,6 +1319,201 @@ test.describe('Editable Preview — Edit Mode', () => {
     const editableEl = frame.locator('[contenteditable="true"]');
     await expect(editableEl.first()).toBeVisible();
   });
+
+  test('delete in editable preview keeps selection stable after reverse sync', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/tipOfTheDay',
+      'title: Tip',
+      'First paragraph in tip block.',
+      '',
+      'Second paragraph to delete.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.waitForTimeout(500);
+
+    const frame = editablePreview(page);
+    const targetPara = frame.locator('.mkly-newsletter-tipOfTheDay p').nth(1);
+    await targetPara.click();
+    await page.waitForTimeout(300);
+
+    await targetPara.click({ clickCount: 3 });
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(1800);
+
+    const src = await getSource(page);
+    expect(src).not.toContain('Second paragraph to delete.');
+
+    const st = await getSelectionState(page);
+    expect(st.activeBlockLine).not.toBeNull();
+    expect(st.selectionId).not.toBeNull();
+
+    const activeHostLine = await frame.locator('[data-mkly-active]').first().evaluate((el) => {
+      const host = el.closest('[data-mkly-id]');
+      return host?.getAttribute('data-mkly-line') ?? null;
+    });
+    expect(activeHostLine).not.toBeNull();
+    await expect(frame.locator('[data-mkly-active]').first()).toContainText('First paragraph in tip block.');
+  });
+
+  test('cut in editable preview keeps active selection mapped to edited block', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'Cut this paragraph content.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.waitForTimeout(500);
+
+    const frame = editablePreview(page);
+    const p = frame.locator('p').first();
+    await p.click({ clickCount: 3 });
+    await page.keyboard.press('ControlOrMeta+x');
+    await page.waitForTimeout(1800);
+
+    const src = await getSource(page);
+    expect(src).not.toContain('Cut this paragraph content.');
+
+    const st = await getSelectionState(page);
+    expect(st.activeBlockLine).not.toBeNull();
+    expect(st.selectionId).not.toBeNull();
+
+    const selectedCount = await frame.locator(`[data-mkly-style-selected="${st.selectionId}"]`).count();
+    expect(selectedCount).toBe(1);
+  });
+
+  test('paste-like insert in HTML pane keeps selection coherent after sync', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'Alpha paragraph.',
+      '',
+      '--- core/text',
+      'Beta paragraph.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    // Establish selection on the second block from preview first.
+    await preview(page).locator('p').nth(1).click();
+    await page.waitForTimeout(400);
+
+    // Switch to HTML pane and edit HTML directly (cut + paste-like insert).
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    await page.waitForTimeout(400);
+
+    const htmlEditor = page.locator('.cm-content').nth(1);
+    await htmlEditor.locator('.cm-line').filter({ hasText: 'Beta paragraph.' }).first().click();
+    await page.keyboard.press('Shift+Home');
+    await page.keyboard.press('ControlOrMeta+x');
+    await page.keyboard.insertText('Beta paragraph. PASTED');
+    await page.waitForTimeout(1800);
+
+    const src = await getSource(page);
+    expect(src).toContain('Beta paragraph. PASTED');
+
+    // Return to preview and ensure active selection is still tied to active block.
+    await page.getByRole('button', { name: 'Preview', exact: true }).first().click();
+    await page.waitForTimeout(500);
+
+    const st = await getSelectionState(page);
+    expect(st.activeBlockLine).not.toBeNull();
+    expect(st.selectionId).not.toBeNull();
+
+    const frame = preview(page);
+    const activeHostLine = await frame.locator('[data-mkly-active]').first().evaluate((el) => {
+      const host = el.closest('[data-mkly-id]');
+      return host?.getAttribute('data-mkly-line') ?? null;
+    });
+    expect(activeHostLine).toBe(String(st.activeBlockLine));
+  });
+
+  test('switching from HTML to Edit allows immediate typing without Preview hop', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'Editable after switch.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.waitForTimeout(500);
+
+    const frame = editablePreview(page);
+    const p = frame.locator('p').first();
+    await p.click({ clickCount: 3 });
+    await page.keyboard.type('Edited right after HTML.');
+    await page.waitForTimeout(1200);
+
+    const src = await getSource(page);
+    expect(src).toContain('Edited right after HTML.');
+  });
+
+  test('typing continuously in edit pane keeps caret position stable', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'Caret stability',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.waitForTimeout(500);
+
+    const frame = editablePreview(page);
+    const p = frame.locator('p').first();
+    await p.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' A');
+    await page.waitForTimeout(400);
+    await page.keyboard.type(' B');
+    await page.waitForTimeout(1400);
+
+    const src = await getSource(page);
+    expect(src).toContain('Caret stability A B');
+  });
+
+  test('typing continuously in HTML pane keeps caret position stable', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'HTML caret',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    await page.waitForTimeout(500);
+
+    const htmlEditor = page.locator('.cm-content').nth(1);
+    const textLine = htmlEditor.locator('.cm-line').filter({ hasText: 'HTML caret' }).first();
+    await textLine.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' A');
+    await page.waitForTimeout(200);
+    await page.keyboard.type(' B');
+    await page.waitForTimeout(1800);
+
+    const src = await getSource(page);
+    expect(src).toContain('HTML caret A B');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1601,6 +1877,150 @@ test.describe('Style Pick Full Workflow', () => {
 
     // Should have Self tab for the button wrapper
     await expect(popup.getByRole('button', { name: 'Self', exact: true })).toBeVisible({ timeout: 3000 });
+  });
+
+  test('style pick click in edit pane keeps edit as focus origin', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/text',
+      'Edit pane target paragraph.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.waitForTimeout(400);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(250);
+
+    const frame = editablePreview(page);
+    await frame.locator('p').first().click();
+    await page.waitForTimeout(400);
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+
+    const state = await page.evaluate(() => {
+      // @ts-ignore
+      const s = window.__editorStore.getState();
+      return {
+        focusOrigin: s.focusOrigin,
+        activeBlockLine: s.activeBlockLine,
+        cursorLine: s.cursorLine,
+      };
+    });
+    expect(state.focusOrigin).toBe('edit');
+    expect(state.activeBlockLine).toBe(3);
+    expect(state.cursorLine).toBe(3);
+  });
+
+  test('style pick style change uses active selection even if style marker is missing', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/recommendations',
+      'title: Weekend Reads',
+      '',
+      '- [Read 1](https://example.com/read-1) — First item',
+      '- [Read 2](https://example.com/read-2) — Second item',
+      '- [Read 3](https://example.com/read-3) — Third item',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-recommendations li').nth(1).click();
+    await page.waitForTimeout(500);
+
+    // Simulate missing style marker while keeping main active selection intact.
+    await frame.locator('.mkly-newsletter-recommendations').evaluate((root) => {
+      root.querySelectorAll('[data-mkly-style-selected]').forEach((el) => {
+        el.removeAttribute('data-mkly-style-selected');
+      });
+    });
+
+    const popup = page.locator('.liquid-glass-overlay');
+    await expect(popup).toBeVisible({ timeout: 3000 });
+    const centerBtn = popup.locator('button[title="center"]').first();
+    if (!(await centerBtn.isVisible())) {
+      await popup.getByRole('button', { name: /layout/i }).first().click();
+      await expect(centerBtn).toBeVisible({ timeout: 3000 });
+    }
+    await centerBtn.click();
+    await page.waitForTimeout(700);
+
+    const nextSource = await getSource(page);
+    expect(nextSource).toMatch(/\{\.s\d+\}/);
+    expect(nextSource).not.toMatch(/^---\s+newsletter\/recommendations:\s/m);
+  });
+
+  test('style popup retargets to newly focused block and keeps style-pick mode active', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/tipOfTheDay',
+      'title: Tip',
+      'First paragraph.',
+      '',
+      'Second paragraph.',
+      '',
+      '--- core/text',
+      'Another block line',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const styleBtn = page.locator('button').filter({ hasText: /^Style$/ });
+    await styleBtn.click();
+    await page.waitForTimeout(300);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-tipOfTheDay p').first().click();
+    await page.waitForTimeout(400);
+    await expect(page.locator('.liquid-glass-overlay')).toBeVisible({ timeout: 3000 });
+
+    // Simulate focus change from code/html panes while popup stays open.
+    await page.evaluate(() => {
+      // @ts-ignore
+      window.__editorStore.getState().focusBlock(11, 'mkly', 'navigate');
+    });
+    await page.waitForTimeout(500);
+
+    const stateAfter = await page.evaluate(() => {
+      // @ts-ignore
+      const s = window.__editorStore.getState();
+      return {
+        stylePickMode: s.stylePickMode,
+        activeBlockLine: s.activeBlockLine,
+        selectionId: s.selectionId,
+        stylePopup: s.stylePopup ? {
+          sourceLine: s.stylePopup.sourceLine,
+          target: s.stylePopup.target,
+          selectionId: s.stylePopup.selectionId,
+        } : null,
+      };
+    });
+
+    expect(stateAfter.stylePickMode).toBe(true);
+    expect(stateAfter.activeBlockLine).toBe(10);
+    expect(stateAfter.stylePopup?.sourceLine).toBe(10);
+    expect(stateAfter.stylePopup?.target).toBe('self');
+    expect(stateAfter.stylePopup?.selectionId).toBe(stateAfter.selectionId);
+
+    const activeHostLine = await frame.locator('[data-mkly-active]').first().evaluate((el) => {
+      const host = el.closest('[data-mkly-id]');
+      return host?.getAttribute('data-mkly-line') ?? null;
+    });
+    expect(activeHostLine).toBe('10');
   });
 
   test('style pick keeps class target stable across consecutive style edits', async ({ page }) => {

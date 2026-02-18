@@ -27,6 +27,7 @@ export function useExternalSync(
   const applyPending = useCallback(() => {
     const view = viewRef.current;
     if (!view || pendingValueRef.current === null) return;
+    if (view.hasFocus) return;
     isExternalRef.current = true;
     applyExternalUpdate(view, pendingValueRef.current);
     isExternalRef.current = false;
@@ -47,8 +48,9 @@ export function useExternalSync(
     const view = viewRef.current;
     if (!view) return;
 
-    if (userEditingRef.current) {
-      // User is editing — stash the value and apply when they stop
+    if (userEditingRef.current || view.hasFocus) {
+      // User is editing or currently focused in this editor —
+      // stash external changes and apply after focus leaves.
       pendingValueRef.current = value;
       return;
     }
@@ -63,5 +65,10 @@ export function useExternalSync(
     return () => clearTimeout(editTimerRef.current);
   }, []);
 
-  return { markUserEdit, isExternalRef };
+  const flushPending = useCallback(() => {
+    userEditingRef.current = false;
+    applyPending();
+  }, [applyPending]);
+
+  return { markUserEdit, isExternalRef, flushPending };
 }

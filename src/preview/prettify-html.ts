@@ -72,8 +72,11 @@ export function prettifyHtml(html: string): string {
           if (closeIdx !== -1) {
             const inner = html.substring(afterTag, closeIdx);
             const hasOnlyInlineTags = !/<(?!\/?(a|b|i|em|strong|span|code|br|img|u|s|mark|small|sup|sub)\b)\w/i.test(inner);
+            const attrs = openMatch[2] ?? '';
+            const hasMklyLineAttr = /\bdata-mkly-line="/.test(attrs);
+            const preferMultiline = hasMklyLineAttr || attrs.length > 40;
             // Keep inline when content is short OR only has inline tags (never split <code> out of <p>)
-            if (hasOnlyInlineTags || inner.length < 120) {
+            if (!preferMultiline && (hasOnlyInlineTags || inner.length < 120)) {
               lines.push('  '.repeat(indent) + fullTag + inner + closeStr);
               pos = closeIdx + closeStr.length;
               continue;
