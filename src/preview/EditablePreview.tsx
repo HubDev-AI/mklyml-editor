@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editor-store';
-import { mkly } from '@mklyml/core';
+import { mkly, buildGoogleFontsLink } from '@mklyml/core';
 import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
@@ -51,8 +51,9 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
     const isDark = useEditorStore.getState().theme === 'dark';
     const darkCss = isDark ? IFRAME_DARK_CSS : '';
+    const fontsLink = buildGoogleFontsLink(content);
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head>${fontsLink}<style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`);
     doc.close();
 
     initializedRef.current = true;
@@ -89,7 +90,8 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     // needs the same structure to find .mkly-document and style tags.
     const isDark = useEditorStore.getState().theme === 'dark';
     const darkCss = isDark ? IFRAME_DARK_CSS : '';
-    const fullHtml = `<!DOCTYPE html><html><head><style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`;
+    const fontsLink = buildGoogleFontsLink(content);
+    const fullHtml = `<!DOCTYPE html><html><head>${fontsLink}<style>${EDIT_MODE_CSS}\n${ACTIVE_BLOCK_CSS}\n${STYLE_PICK_CSS}\n${darkCss}</style></head><body style="margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">${content}</body></html>`;
 
     const morphed = morphIframeContent(doc, fullHtml);
     if (!morphed) return false;
