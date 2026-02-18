@@ -386,8 +386,21 @@ describe('resolveBlockLine', () => {
     expect(result.blockType).toBe('newsletter/intro');
   });
 
-  test('returns null for special blocks (use/meta/theme/style)', () => {
+  test('returns null for special blocks (use/meta/theme/preset/style)', () => {
     const result = resolveBlockLine(1, SIMPLE_SOURCE);
+    expect(result.blockLine).toBeNull();
+    expect(result.blockType).toBeNull();
+  });
+
+  test('returns null for preset blocks', () => {
+    const source = `--- use: core
+--- preset: core/default
+
+--- core/header
+title: Test
+`;
+    const presetLine = source.split('\n').findIndex(l => l.trim().startsWith('--- preset:')) + 1;
+    const result = resolveBlockLine(presetLine, source);
     expect(result.blockLine).toBeNull();
     expect(result.blockType).toBeNull();
   });
