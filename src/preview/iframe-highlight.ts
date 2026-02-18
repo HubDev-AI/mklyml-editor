@@ -10,13 +10,14 @@ export const STYLE_PICK_CSS = [
   '[data-mkly-style-hover]{outline:2px dashed rgba(226,114,91,0.7)!important;outline-offset:2px;cursor:pointer!important}',
   `[${STYLE_SELECTED_ATTR}]{outline:2px solid rgba(226,114,91,0.95)!important;outline-offset:2px}`,
   'body.mkly-style-pick *{cursor:crosshair!important}',
+  'body.mkly-style-pick [contenteditable="false"]{opacity:1!important}',
 ].join('\n');
 
-let styleSelectionSeq = 0;
-
-function nextStyleSelectionId(): string {
-  styleSelectionSeq += 1;
-  return `mkly-sel-${styleSelectionSeq}`;
+function eventTargetToElement(target: EventTarget | null): Element | null {
+  if (!target || typeof target !== 'object') return null;
+  const candidate = target as { nodeType?: number; parentElement?: Element | null };
+  if (candidate.nodeType === 1) return target as unknown as Element;
+  return candidate.parentElement ?? null;
 }
 
 export function clearStylePickSelection(doc: Document): void {
@@ -103,6 +104,37 @@ function resolveStyleSelectionElement(
   return null;
 }
 
+function resolveActiveBlockElement(
+  doc: Document,
+  activeBlockLine: number,
+  selectedLine?: number | null,
+): HTMLElement | null {
+  const direct = findBlockElement(activeBlockLine, doc);
+  if (direct?.hasAttribute('data-mkly-id')) return direct;
+
+  if (selectedLine !== undefined && selectedLine !== null) {
+    const selected = doc.querySelector<HTMLElement>(`[data-mkly-line="${selectedLine}"]`);
+    const selectedBlock = selected?.closest<HTMLElement>('[data-mkly-id][data-mkly-line]');
+    if (selectedBlock) return selectedBlock;
+  }
+
+  const blockRoots = Array.from(doc.querySelectorAll<HTMLElement>('[data-mkly-id][data-mkly-line]'));
+  if (blockRoots.length === 0) return null;
+
+  let best: HTMLElement | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const root of blockRoots) {
+    const line = Number(root.dataset.mklyLine);
+    if (!Number.isFinite(line)) continue;
+    const distance = Math.abs(line - activeBlockLine);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = root;
+    }
+  }
+  return best;
+}
+
 /**
  * Highlight the active block in an iframe and optionally scroll to it.
  * When a style popup is open, highlights the specific sub-element instead of the block root.
@@ -116,25 +148,44 @@ export function syncActiveBlock(
   focusIntent: FocusIntent,
   scrollLock: boolean,
   styleTarget?: { blockType: string; target: string; targetIndex?: number; selectionId?: string } | null,
+  selectedLine?: number | null,
+  activeSelectionId?: string | null,
 ) {
   doc.querySelectorAll('[data-mkly-active]').forEach((el) => el.removeAttribute('data-mkly-active'));
+  if (!styleTarget) {
+    clearStylePickSelection(doc);
+  }
+  const styleSelectionId = styleTarget?.selectionId ?? null;
   if (activeBlockLine !== null) {
-    const el = findBlockElement(activeBlockLine, doc);
+    const el = resolveActiveBlockElement(doc, activeBlockLine, selectedLine);
     if (el) {
       let highlightEl: Element = el;
       if (styleTarget) {
         const marked = styleTarget.selectionId
           ? findStyleSelectionElement(doc, styleTarget.selectionId)
           : null;
-        const sub = marked
+        const markedInBlock = marked && (marked === el || el.contains(marked)) ? marked : null;
+        const sub = markedInBlock
           ?? findStyleTargetElement(el, styleTarget.blockType, styleTarget.target, styleTarget.targetIndex);
-        if (sub) highlightEl = sub;
+        if (sub && (sub === el || el.contains(sub))) highlightEl = sub;
+      }
+      if (highlightEl === el && selectedLine !== undefined && selectedLine !== null) {
+        const lineEl = doc.querySelector(`[data-mkly-line="${selectedLine}"]`);
+        if (lineEl && (lineEl === el || el.contains(lineEl))) {
+          highlightEl = lineEl;
+        }
       }
       highlightEl.setAttribute('data-mkly-active', '');
+      if (styleSelectionId && styleTarget) {
+        clearStylePickSelection(doc);
+        highlightEl.setAttribute(STYLE_SELECTED_ATTR, styleSelectionId);
+      }
       if (shouldScrollToBlock(focusOrigin, selfOrigin, focusIntent, scrollLock)) {
-        highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        highlightEl.scrollIntoView({ block: 'center' });
       }
     }
+  } else if (styleSelectionId || activeSelectionId) {
+    clearStylePickSelection(doc);
   }
 }
 
@@ -144,20 +195,11 @@ export function syncActiveBlock(
  */
 export function bindBlockClicks(doc: Document, origin: FocusOrigin): () => void {
   const handler = (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    let el = target.closest<HTMLElement>('[data-mkly-line]');
-    if (!el) {
-      const blocks = doc.querySelectorAll<HTMLElement>('[data-mkly-line]');
-      for (const block of blocks) {
-        const rect = block.getBoundingClientRect();
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom &&
-            e.clientX >= rect.left && e.clientX <= rect.right) {
-          el = block;
-          break;
-        }
-      }
-    }
-    if (el) {
+    const target = eventTargetToElement(e.target);
+    if (!target) return;
+
+    const el = target.closest<HTMLElement>('[data-mkly-line]');
+    if (el?.dataset.mklyLine) {
       const line = Number(el.dataset.mklyLine);
       useEditorStore.getState().focusBlock(line, origin);
     }
@@ -181,38 +223,27 @@ export function bindStylePickHover(doc: Document): () => void {
   let lastHovered: Element | null = null;
 
   const over = (e: MouseEvent) => {
-    const target = e.target as Element;
-    const block = target.closest('[data-mkly-id]');
-    if (!block) return;
+    const clicked = eventTargetToElement(e.target);
+    if (!clicked) return;
 
-    // Determine what to highlight — mirrors detectTarget() logic:
-    // 1. BEM sub-element (walk up from target to block looking for __class)
-    // 2. The target element itself if it's a meaningful tag (not div/section/etc.)
-    // 3. The block root otherwise
-    const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
-    let hoverEl: Element = block;
-    let foundBEM = false;
-    if (baseClass) {
-      let el: Element | null = target;
-      while (el && el !== block) {
-        if ([...el.classList].some(c => c.startsWith(baseClass + '__'))) {
-          hoverEl = el;
-          foundBEM = true;
+    const block = clicked.closest<HTMLElement>('[data-mkly-id]');
+    if (!block) return;
+    const blockType = extractBlockType(block);
+    if (!blockType) return;
+
+    const target = detectTarget(clicked, block);
+    let targetIndex: number | undefined;
+    if (/^>[a-z]/.test(target)) {
+      const tag = target.slice(1);
+      const all = block.querySelectorAll(tag);
+      for (let i = 0; i < all.length; i++) {
+        if (all[i] === clicked || all[i].contains(clicked)) {
+          targetIndex = i;
           break;
         }
-        el = el.parentElement;
       }
     }
-    // For non-BEM elements, resolve inline tags to block-level parent and highlight
-    if (!foundBEM && target !== block) {
-      const resolved = resolveInlineElement(target, block);
-      if (resolved !== block) {
-        const tag = resolved.tagName.toLowerCase();
-        if (tag !== 'div' && tag !== 'section' && tag !== 'article' && tag !== 'main') {
-          hoverEl = resolved;
-        }
-      }
-    }
+    const hoverEl = resolveStyleSelectionElement(clicked, block, blockType, target, targetIndex) ?? block;
 
     if (lastHovered && lastHovered !== hoverEl) {
       lastHovered.removeAttribute('data-mkly-style-hover');
@@ -243,9 +274,14 @@ export function bindStylePickHover(doc: Document): () => void {
  * `iframeEl` is the iframe DOM element (for coordinate conversion).
  * Returns a cleanup function.
  */
-export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): () => void {
+export function bindStylePickClick(
+  doc: Document,
+  iframeEl: HTMLIFrameElement,
+  origin: FocusOrigin,
+): () => void {
   const handler = (e: MouseEvent) => {
-    const clicked = e.target as Element;
+    const clicked = eventTargetToElement(e.target);
+    if (!clicked) return;
 
     // Find block root via data-mkly-id (only block roots have this attribute).
     // Sub-elements may have data-mkly-line but not data-mkly-id.
@@ -267,14 +303,17 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     // detectTarget returns the tag name as a fallback.
     const target = detectTarget(clicked, block);
 
-    // For plain tag targets (">li", ">p"), find the source line so we can
-    // inject a class annotation later (deferred to first style change).
-    // Also compute targetIndex — which Nth sibling of that tag was clicked.
+    // Resolve the exact source line for the selected element. This must be
+    // kept for both tag targets (">p") and class targets (">.s1") so style
+    // edits never fall back to block-level when marker lookup races.
     let targetLine: number | undefined;
     let targetIndex: number | undefined;
+    const selectedLine = findSourceLine(clicked, block);
+    if (selectedLine) targetLine = selectedLine.lineNum;
+
+    // For plain tag targets (">li", ">p"), also keep sibling index to
+    // disambiguate repeated tags inside the same block.
     if (/^>[a-z]/.test(target)) {
-      const sl = findSourceLine(clicked, block);
-      if (sl) targetLine = sl.lineNum;
       const tag = target.slice(1);
       const all = block.querySelectorAll(tag);
       for (let i = 0; i < all.length; i++) {
@@ -287,9 +326,6 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
 
     const selectedEl = resolveStyleSelectionElement(clicked, block, blockType, target, targetIndex);
     if (!selectedEl) return;
-    const selectionId = nextStyleSelectionId();
-    clearStylePickSelection(doc);
-    selectedEl.setAttribute(STYLE_SELECTED_ATTR, selectionId);
 
     // Label from BEM modifier class (e.g., mkly-core-card--hero → "hero")
     const baseClass = [...block.classList].find(c => c.startsWith('mkly-') && !c.includes('__') && !c.includes('--'));
@@ -311,9 +347,23 @@ export function bindStylePickClick(doc: Document, iframeEl: HTMLIFrameElement): 
     };
 
     const line = Number(block.dataset.mklyLine);
+    const selectedLineAttr = selectedEl.getAttribute('data-mkly-line');
+    const selectedLineValue = selectedLineAttr ? Number(selectedLineAttr) : Number.NaN;
+    const selectedLineNumber = Number.isFinite(selectedLineValue) ? selectedLineValue : undefined;
+    const focusLine = targetLine ?? selectedLineNumber ?? line;
     const store = useEditorStore.getState();
-    store.focusBlock(line, 'preview');
-    store.openStylePopup({ blockType, target, label, sourceLine: line, targetLine, targetIndex, selectionId, anchorRect });
+    store.focusBlock(focusLine, origin);
+    const selectionId = useEditorStore.getState().selectionId;
+    store.openStylePopup({
+      blockType,
+      target,
+      label,
+      sourceLine: line,
+      targetLine,
+      targetIndex,
+      selectionId: selectionId ?? undefined,
+      anchorRect,
+    });
   };
 
   doc.addEventListener('mousedown', handler, true);

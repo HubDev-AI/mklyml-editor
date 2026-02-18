@@ -39,6 +39,7 @@ interface EditorState {
 
   // Rich selection state for cross-pane coordination
   selection: SelectionState;
+  selectionId: string | null;
 
   // Data-driven focus: which tab last set cursorLine.
   // Each tab reacts to activeBlockLine but skips scroll/highlight
@@ -332,6 +333,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   sidebarWidth: 260,
   activeBlockLine: null,
   selection: { blockLine: null, blockType: null, propertyKey: null, contentRange: null },
+  selectionId: null,
   focusOrigin: null,
   focusVersion: 0,
   focusIntent: 'navigate',
@@ -354,13 +356,23 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHtml: (html) => set({ html }),
   setErrors: (errors) => set({ errors }),
   setOutputMode: (mode) => set({ outputMode: mode }),
-  setViewMode: (mode) => set((state) => ({
-    viewMode: mode,
-    focusOrigin: null,
-    focusVersion: state.activeBlockLine !== null
-      ? state.focusVersion + 1 : state.focusVersion,
-    focusIntent: 'navigate' as const,
-  })),
+  setViewMode: (mode) => set((state) => {
+    const { blockLine, blockType } = resolveBlockLine(state.cursorLine, state.source);
+    return {
+      viewMode: mode,
+      activeBlockLine: blockLine,
+      selection: {
+        blockLine,
+        blockType,
+        propertyKey: state.selection.propertyKey,
+        contentRange: null,
+      },
+      focusOrigin: null,
+      focusVersion: blockLine !== null
+        ? state.focusVersion + 1 : state.focusVersion,
+      focusIntent: 'navigate' as const,
+    };
+  }),
   setTheme: (theme) => set({ theme }),
   setPanelSizes: (sizes) => set((state) => ({
     panelSizes: typeof sizes === 'function' ? sizes(state.panelSizes) : sizes,
@@ -392,9 +404,31 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   focusBlock: (line, origin, intent = 'navigate') => set((state) => {
     const { blockLine, blockType } = resolveBlockLine(line, state.source);
+    const nextSelectionId = `sel-${state.focusVersion + 1}`;
+    let nextStylePopup = state.stylePopup;
+
+    // If popup is open and user selected another block from elsewhere, retarget popup
+    // to that block and keep selection identity aligned with the global selection flow.
+    if (nextStylePopup && blockLine !== null && origin !== 'inspector') {
+      const popupBlockLine = resolveBlockLine(nextStylePopup.sourceLine, state.source).blockLine;
+      if (popupBlockLine !== blockLine) {
+        nextStylePopup = {
+          ...nextStylePopup,
+          blockType: blockType ?? nextStylePopup.blockType,
+          sourceLine: blockLine,
+          target: 'self',
+          label: undefined,
+          targetLine: undefined,
+          targetIndex: undefined,
+          selectionId: nextSelectionId,
+        };
+      }
+    }
+
     return {
       cursorLine: line,
       activeBlockLine: blockLine,
+      selectionId: nextSelectionId,
       selection: {
         blockLine,
         blockType,
@@ -404,6 +438,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       focusOrigin: origin,
       focusVersion: state.focusVersion + 1,
       focusIntent: intent,
+      stylePopup: nextStylePopup,
     };
   }),
 

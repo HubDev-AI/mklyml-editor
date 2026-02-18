@@ -8,7 +8,8 @@ import { mklyThemeLight } from '../editor/mkly-theme-light';
 import { useEditorStore } from '../store/editor-store';
 import { useExternalSync } from '../hooks/use-external-sync';
 import { clearPendingScroll } from '../editor/safe-dispatch';
-import { findHtmlPositionForBlock, shouldScrollToBlock } from '../store/selection-orchestrator';
+import { findHtmlPositionForBlock, resolveBlockLine, shouldScrollToBlock } from '../store/selection-orchestrator';
+import { parseCursorBlock } from '../store/use-cursor-context';
 
 const setHtmlHighlightEffect = StateEffect.define<{ from: number; to: number } | null>();
 
@@ -45,13 +46,67 @@ const themeCompartment = new Compartment();
 const wrapCompartment = new Compartment();
 const readOnlyCompartment = new Compartment();
 
-function findNearestMklyLine(text: string, pos: number): number | null {
-  const before = text.slice(0, pos);
-  const match = before.match(/data-mkly-line="(\d+)"/g);
-  if (!match) return null;
-  const last = match[match.length - 1];
-  const numMatch = last.match(/data-mkly-line="(\d+)"/);
-  return numMatch ? Number(numMatch[1]) : null;
+const VOID_TAGS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
+function findSourceSelectionFromCaret(
+  text: string,
+  pos: number,
+): { sourceLine: number; tag: string | null } | null {
+  const clamped = Math.max(0, Math.min(pos, text.length));
+  const tagRe = /<\/?([a-zA-Z][\w:-]*)([^>]*)>/g;
+  const stack: Array<{ tag: string; sourceLine: number | null }> = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = tagRe.exec(text)) !== null) {
+    if (m.index > clamped) break;
+    const full = m[0];
+    const tag = m[1].toLowerCase();
+    const attrs = m[2] ?? '';
+    const isClosing = full.startsWith('</');
+    const isSelfClosing = /\/\s*>$/.test(full) || VOID_TAGS.has(tag);
+
+    if (isClosing) {
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const frame = stack[i];
+        stack.splice(i, 1);
+        if (frame.tag === tag) break;
+      }
+      continue;
+    }
+
+    const lineMatch = attrs.match(/\bdata-mkly-line="(\d+)"/);
+    stack.push({
+      tag,
+      sourceLine: lineMatch ? Number(lineMatch[1]) : null,
+    });
+
+    if (isSelfClosing) stack.pop();
+  }
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const frame = stack[i];
+    if (frame.sourceLine !== null) {
+      return { sourceLine: frame.sourceLine, tag: frame.tag };
+    }
+  }
+
+  const before = text.slice(0, clamped);
+  const all = before.match(/\bdata-mkly-line="(\d+)"/g);
+  if (!all) return null;
+  const last = all[all.length - 1];
+  const lineMatch = last.match(/\bdata-mkly-line="(\d+)"/);
+  if (!lineMatch) return null;
+  return { sourceLine: Number(lineMatch[1]), tag: null };
+}
+
+function findHtmlRangeForSourceLine(
+  text: string,
+  sourceLine: number,
+): { from: number; to: number } | null {
+  return findHtmlPositionForBlock(sourceLine, text);
 }
 
 export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSourceEditorProps) {
@@ -60,23 +115,40 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
   const onChangeRef = useRef(onChange);
   const theme = useEditorStore((s) => s.theme);
   const viewMode = useEditorStore((s) => s.viewMode);
+  const cursorLine = useEditorStore((s) => s.cursorLine);
   const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
   const focusOrigin = useEditorStore((s) => s.focusOrigin);
   const focusVersion = useEditorStore((s) => s.focusVersion);
   const focusIntent = useEditorStore((s) => s.focusIntent);
   const scrollLock = useEditorStore((s) => s.scrollLock);
   const wordWrap = useEditorStore((s) => s.htmlWordWrap);
-  const cursorDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const localSelectionFrameRef = useRef<number | null>(null);
+  const lastLocalLineRef = useRef<number | null>(null);
   const lastFocusVersionRef = useRef(-1);
   const hasBeenVisibleRef = useRef(false);
 
   onChangeRef.current = onChange;
 
   // External sync: skips updates while user is editing, re-syncs after cooldown
-  const { markUserEdit, isExternalRef } = useExternalSync(viewRef, value);
+  const { markUserEdit, isExternalRef, flushPending } = useExternalSync(viewRef, value);
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    const commitSelectionFromView = (view: EditorView, force = false) => {
+      const pos = view.state.selection.main.head;
+      const text = view.state.doc.toString();
+      const selection = findSourceSelectionFromCaret(text, pos);
+      if (!selection) return;
+      const line = selection.sourceLine;
+
+      const store = useEditorStore.getState();
+      if (!force && store.focusOrigin === 'html' && store.cursorLine === line && lastLocalLineRef.current === line) {
+        return;
+      }
+      lastLocalLineRef.current = line;
+      store.focusBlock(line, 'html');
+    };
 
     const state = EditorState.create({
       doc: value,
@@ -99,16 +171,75 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
             onChangeRef.current(update.state.doc.toString());
           }
           if (update.selectionSet && !update.docChanged && !isExternalRef.current && update.view.hasFocus) {
-            clearTimeout(cursorDebounceRef.current);
-            cursorDebounceRef.current = setTimeout(() => {
-              const pos = update.state.selection.main.head;
-              const text = update.state.doc.toString();
-              const line = findNearestMklyLine(text, pos);
-              if (line !== null) {
-                useEditorStore.getState().focusBlock(line, 'html');
-              }
-            }, 500);
+            update.view.dispatch({ effects: setHtmlHighlightEffect.of(null) });
+            if (localSelectionFrameRef.current !== null) {
+              cancelAnimationFrame(localSelectionFrameRef.current);
+            }
+            localSelectionFrameRef.current = requestAnimationFrame(() => {
+              localSelectionFrameRef.current = null;
+              const currentView = viewRef.current;
+              if (!currentView || !currentView.hasFocus) return;
+              commitSelectionFromView(currentView);
+            });
           }
+        }),
+        EditorView.domEventHandlers({
+          mousedown: (event, view) => {
+            const store = useEditorStore.getState();
+            if (!store.stylePickMode || readOnly) return false;
+
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos === null) return false;
+
+            const text = view.state.doc.toString();
+            const selection = findSourceSelectionFromCaret(text, pos);
+            if (!selection) return false;
+            const sourceLine = selection.sourceLine;
+
+            const source = store.source;
+            const { blockLine, blockType } = resolveBlockLine(sourceLine, source);
+            if (blockLine === null || !blockType) return false;
+
+            store.focusBlock(sourceLine, 'html');
+            const selectionId = useEditorStore.getState().selectionId ?? undefined;
+            const block = parseCursorBlock(source, sourceLine);
+            const coords = view.coordsAtPos(pos);
+            if (!coords) return false;
+
+            const tag = selection.tag;
+            const target = tag && !['div', 'section', 'article', 'main'].includes(tag)
+              ? `>${tag}`
+              : 'self';
+
+            store.openStylePopup({
+              blockType,
+              target,
+              label: block?.label,
+              sourceLine: blockLine,
+              targetLine: target.startsWith('>') ? sourceLine : undefined,
+              selectionId,
+              anchorRect: {
+                x: coords.left,
+                y: coords.top,
+                width: Math.max(1, coords.right - coords.left),
+                height: Math.max(1, coords.bottom - coords.top),
+              },
+            });
+
+            return false;
+          },
+          blur: () => {
+            if (localSelectionFrameRef.current !== null) {
+              cancelAnimationFrame(localSelectionFrameRef.current);
+              localSelectionFrameRef.current = null;
+            }
+            const currentView = viewRef.current;
+            if (currentView) {
+              commitSelectionFromView(currentView, true);
+            }
+            flushPending();
+            return false;
+          },
         }),
         wrapCompartment.of(EditorView.lineWrapping),
         readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
@@ -120,7 +251,9 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
     viewRef.current = view;
 
     return () => {
-      clearTimeout(cursorDebounceRef.current);
+      if (localSelectionFrameRef.current !== null) {
+        cancelAnimationFrame(localSelectionFrameRef.current);
+      }
       view.destroy();
       viewRef.current = null;
     };
@@ -171,46 +304,48 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
     }
   }, [viewMode]);
 
-  // React to activeBlockLine: ALWAYS highlight, CONDITIONAL scroll
+  // React to external selection: highlight exact selected source line when possible,
+  // otherwise fall back to the containing block line.
   // Skip when hidden — dispatching scrollIntoView to a hidden CM6 instance
   // creates a pendingScrollTarget that crashes on the next document change.
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || activeBlockLine === null) return;
+    if (!view) return;
     if (viewMode !== 'html') return;
     if (focusOrigin === 'html') return;
     if (focusVersion === lastFocusVersionRef.current) return;
     lastFocusVersionRef.current = focusVersion;
+    if (view.hasFocus) return;
 
     requestAnimationFrame(() => {
       const v = viewRef.current;
       if (!v) return;
+      if (v.hasFocus) return;
 
       const text = v.state.doc.toString();
-      const pos = findHtmlPositionForBlock(activeBlockLine, text);
-      if (!pos) return;
+      let range = findHtmlRangeForSourceLine(text, cursorLine);
+      if (!range && activeBlockLine !== null && activeBlockLine !== cursorLine) {
+        range = findHtmlRangeForSourceLine(text, activeBlockLine);
+      }
+      if (!range) return;
 
       isExternalRef.current = true;
       clearPendingScroll(v);
 
       v.dispatch({
-        effects: setHtmlHighlightEffect.of({ from: pos.from, to: pos.to }),
+        effects: setHtmlHighlightEffect.of({ from: range.from, to: range.to }),
       });
 
       if (shouldScrollToBlock(focusOrigin, 'html', focusIntent, scrollLock)) {
+        const lineStart = v.state.doc.lineAt(range.from).from;
         v.dispatch({
-          effects: EditorView.scrollIntoView(pos.from, { y: 'center' }),
+          effects: EditorView.scrollIntoView(lineStart, { y: 'center' }),
         });
       }
 
       isExternalRef.current = false;
     });
-    const timer = setTimeout(() => {
-      clearPendingScroll(view);
-      view.dispatch({ effects: setHtmlHighlightEffect.of(null) });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [activeBlockLine, focusOrigin, focusVersion, focusIntent, scrollLock, viewMode]);
+  }, [cursorLine, activeBlockLine, focusOrigin, focusVersion, focusIntent, scrollLock, viewMode]);
 
   return (
     <div

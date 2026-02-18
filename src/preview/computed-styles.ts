@@ -30,6 +30,7 @@ export function queryComputedStyles(
   doc: Document,
   line: number,
   styleTarget?: StyleTarget | null,
+  selectedLine?: number | null,
 ): Record<string, string> {
   const blockEl = doc.querySelector(`[data-mkly-line="${line}"]`);
   if (!blockEl || !(blockEl instanceof HTMLElement)) return {};
@@ -41,6 +42,11 @@ export function queryComputedStyles(
     const sub = findSubElement(blockEl, styleTarget);
     if (!sub) return {};
     el = sub;
+  } else if (selectedLine !== undefined && selectedLine !== null && selectedLine !== line) {
+    const selectedEl = doc.querySelector(`[data-mkly-line="${selectedLine}"]`);
+    if (selectedEl && (selectedEl === blockEl || blockEl.contains(selectedEl))) {
+      el = selectedEl;
+    }
   }
 
   const cs = doc.defaultView?.getComputedStyle(el);

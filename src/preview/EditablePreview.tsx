@@ -5,7 +5,7 @@ import { makeBlocksEditable, EDIT_MODE_CSS } from './editable-blocks';
 import { cleanHtmlForReverse, MKLY_KITS, findBlockByOriginalLine } from './reverse-helpers';
 import { SyncEngine } from './SyncEngine';
 import { IFRAME_DARK_CSS } from './iframe-dark-css';
-import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick, clearStylePickSelection } from './iframe-highlight';
+import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 import { morphIframeContent } from './iframe-morph';
 
@@ -17,6 +17,8 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const html = useEditorStore((s) => s.html);
   const setSource = useEditorStore((s) => s.setSource);
   const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
+  const cursorLine = useEditorStore((s) => s.cursorLine);
+  const selectionId = useEditorStore((s) => s.selectionId);
   const focusOrigin = useEditorStore((s) => s.focusOrigin);
   const focusIntent = useEditorStore((s) => s.focusIntent);
   const focusVersion = useEditorStore((s) => s.focusVersion);
@@ -32,6 +34,8 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const syncRef = useRef(new SyncEngine());
   const stylePickModeRef = useRef(stylePickMode);
   const initializedRef = useRef(false);
+  const pendingSyncRef = useRef<{ html: string; theme: 'light' | 'dark' } | null>(null);
+  const flushPendingSyncRef = useRef<() => void>(() => {});
   stylePickModeRef.current = stylePickMode;
 
   useEffect(() => {
@@ -72,6 +76,9 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       const a = (e.target as HTMLElement).closest('a');
       if (a) e.preventDefault();
     });
+    doc.addEventListener('focusout', () => {
+      requestAnimationFrame(() => flushPendingSyncRef.current());
+    });
 
     bindBlockClicks(doc, 'edit');
   }, []);
@@ -104,6 +111,78 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
     return true;
   }, []);
+
+  const syncLatestHtmlToIframe = useCallback((nextHtml: string, nextTheme: 'light' | 'dark') => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+
+    const prevTheme = iframe.dataset.lastTheme ?? 'dark';
+    const themeChanged = nextTheme !== prevTheme;
+
+    // First render of the editable iframe must always materialize immediately.
+    if (!initializedRef.current) {
+      pendingSyncRef.current = null;
+      lastHtmlRef.current = nextHtml;
+      iframe.dataset.lastTheme = nextTheme;
+      writeToIframe(nextHtml);
+      return;
+    }
+
+    if (doc.hasFocus() || isEditingRef.current) {
+      pendingSyncRef.current = { html: nextHtml, theme: nextTheme };
+      return;
+    }
+    pendingSyncRef.current = null;
+    lastHtmlRef.current = nextHtml;
+    iframe.dataset.lastTheme = nextTheme;
+
+    if (!initializedRef.current || themeChanged) {
+      writeToIframe(nextHtml);
+      return;
+    }
+
+    if (!morphToIframe(nextHtml)) {
+      writeToIframe(nextHtml);
+    }
+  }, [morphToIframe, writeToIframe]);
+
+  const flushPendingSync = useCallback(() => {
+    const pending = pendingSyncRef.current;
+    if (!pending) return;
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc || doc.hasFocus() || isEditingRef.current) return;
+    pendingSyncRef.current = null;
+    const prevTheme = iframe.dataset.lastTheme ?? 'dark';
+    const themeChanged = pending.theme !== prevTheme;
+    lastHtmlRef.current = pending.html;
+    iframe.dataset.lastTheme = pending.theme;
+    if (!initializedRef.current || themeChanged) {
+      writeToIframe(pending.html);
+      return;
+    }
+    if (!morphToIframe(pending.html)) {
+      writeToIframe(pending.html);
+    }
+  }, [morphToIframe, writeToIframe]);
+
+  flushPendingSyncRef.current = flushPendingSync;
+
+  const releaseEditingLock = useCallback((delayMs = 200) => {
+    setTimeout(() => {
+      isEditingRef.current = false;
+      const state = useEditorStore.getState();
+      if (
+        state.html !== lastHtmlRef.current
+        || state.theme !== (iframeRef.current?.dataset.lastTheme ?? 'dark')
+      ) {
+        syncLatestHtmlToIframe(state.html, state.theme);
+      }
+      flushPendingSync();
+    }, delayMs);
+  }, [syncLatestHtmlToIframe, flushPendingSync]);
 
   const handleInput = useCallback(() => {
     isEditingRef.current = true;
@@ -139,11 +218,8 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
       onSyncError(errorMsg);
       setTimeout(() => {
         isEditingRef.current = false;
-        // Revert via morph if possible, fall back to full write
-        const latestHtml = useEditorStore.getState().html;
-        if (!morphToIframe(latestHtml)) {
-          writeToIframe(latestHtml);
-        }
+        const state = useEditorStore.getState();
+        syncLatestHtmlToIframe(state.html, state.theme);
       }, 100);
     };
 
@@ -153,7 +229,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
         return;
       }
       if (result.source === undefined) {
-        setTimeout(() => { isEditingRef.current = false; }, 200);
+        releaseEditingLock();
         return;
       }
 
@@ -220,30 +296,17 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
         }
       }
 
-      setTimeout(() => { isEditingRef.current = false; }, 200);
+      releaseEditingLock();
     }, 300);
-  }, [setSource, onSyncError, morphToIframe, writeToIframe]);
+  }, [setSource, onSyncError, releaseEditingLock, syncLatestHtmlToIframe]);
   handleInputRef.current = handleInput;
 
   // Sync HTML to iframe: morph on update, full write on first render or theme change
   useEffect(() => {
     if (isEditingRef.current) return;
     if (html === lastHtmlRef.current && theme === (iframeRef.current?.dataset.lastTheme ?? 'dark')) return;
-
-    const themeChanged = theme !== (iframeRef.current?.dataset.lastTheme ?? 'dark');
-    lastHtmlRef.current = html;
-    if (iframeRef.current) iframeRef.current.dataset.lastTheme = theme;
-
-    // Theme change requires full rewrite (CSS is in the head template).
-    // First render also requires full write. Otherwise, morph.
-    if (!initializedRef.current || themeChanged) {
-      writeToIframe(html);
-    } else {
-      if (!morphToIframe(html)) {
-        writeToIframe(html);
-      }
-    }
-  }, [html, writeToIframe, morphToIframe, theme]);
+    syncLatestHtmlToIframe(html, theme);
+  }, [html, theme, syncLatestHtmlToIframe]);
 
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
@@ -256,15 +319,15 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
           selectionId: stylePopup.selectionId,
         }
       : null;
-    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock, styleTarget);
+    syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock, styleTarget, cursorLine, selectionId);
     if (activeBlockLine !== null) {
-      setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget));
+      setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget, cursorLine));
     }
     // html dep: after recompilation morphs the iframe, re-sync the highlight on the
     // updated DOM. Without this, focusBlock() called before compile finishes would
     // highlight the wrong block (stale line numbers) and the morph would preserve it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBlockLine, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup, html]);
+  }, [activeBlockLine, cursorLine, selectionId, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup, html]);
 
   // Style pick mode: bind/unbind hover and click handlers.
   // Depends on `html` so handlers are re-bound after every iframe morph/rewrite,
@@ -280,26 +343,19 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     if (stylePickMode) {
       doc.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'false'));
       const cleanupHover = bindStylePickHover(doc);
-      const cleanupClick = bindStylePickClick(doc, iframe);
+      const cleanupClick = bindStylePickClick(doc, iframe, 'edit');
       return () => {
         cleanupHover();
         cleanupClick();
         if (doc.body) {
           setStylePickClass(doc, false);
-          clearStylePickSelection(doc);
           makeBlocksEditable(doc);
         }
       };
     }
-    clearStylePickSelection(doc);
+    makeBlocksEditable(doc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stylePickMode, html]);
-
-  useEffect(() => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc || stylePopup) return;
-    clearStylePickSelection(doc);
-  }, [stylePopup]);
 
   return (
     <iframe

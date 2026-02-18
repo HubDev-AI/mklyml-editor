@@ -29,6 +29,48 @@ function parseGapScale(source: string): number {
 
 /** Update or insert gapScale in the source's `--- style` block. */
 function writeGapScale(source: string, value: number): string {
+  const normalizeStyleSpacing = (rawLines: string[]): string[] => {
+    const lines = [...rawLines];
+    let styleStart = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (/^---\s+style\b/.test(lines[i])) {
+        styleStart = i;
+        break;
+      }
+    }
+    if (styleStart === -1) return lines;
+
+    // Ensure exactly one blank line before --- style (unless it's at top of file).
+    while (styleStart > 0 && lines[styleStart - 1].trim() === '') {
+      lines.splice(styleStart - 1, 1);
+      styleStart--;
+    }
+    if (styleStart > 0 && lines[styleStart - 1].trim() !== '') {
+      lines.splice(styleStart, 0, '');
+      styleStart++;
+    }
+
+    // Ensure exactly one blank line between style block and the next directive.
+    let nextDirective = lines.length;
+    for (let i = styleStart + 1; i < lines.length; i++) {
+      if (/^---\s/.test(lines[i])) {
+        nextDirective = i;
+        break;
+      }
+    }
+
+    while (nextDirective > styleStart + 1 && lines[nextDirective - 1].trim() === '') {
+      lines.splice(nextDirective - 1, 1);
+      nextDirective--;
+    }
+    if (nextDirective < lines.length && lines[nextDirective - 1].trim() !== '') {
+      lines.splice(nextDirective, 0, '');
+    }
+
+    return lines;
+  };
+
   const lines = source.split('\n');
   const isDefault = Math.abs(value - 1) < 0.001;
 
@@ -61,13 +103,13 @@ function writeGapScale(source: string, value: number): string {
       const existingIndent = lines[gapScaleLine].match(/^(\s*)/)?.[1] ?? '';
       lines[gapScaleLine] = `${existingIndent}gapScale: ${value}`;
     }
-    return lines.join('\n');
+    return normalizeStyleSpacing(lines).join('\n');
   }
 
   // Case 2: style block exists but no gapScale — insert right after `--- style`
   if (styleBlockStart !== -1 && !isDefault) {
     lines.splice(styleBlockStart + 1, 0, `gapScale: ${value}`);
-    return lines.join('\n');
+    return normalizeStyleSpacing(lines).join('\n');
   }
 
   // Case 3: no style block — create one (after meta in canonical order)
@@ -86,7 +128,7 @@ function writeGapScale(source: string, value: number): string {
       }
     }
     lines.splice(insertIdx, 0, `--- style`, `gapScale: ${value}`, '');
-    return lines.join('\n');
+    return normalizeStyleSpacing(lines).join('\n');
   }
 
   // Default value and no existing line — nothing to do
