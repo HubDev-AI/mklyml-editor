@@ -1,0 +1,51 @@
+name: Publish Package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.event.release.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Clone dependencies
+        run: |
+          git clone --depth 1 https://github.com/HubDev-AI/mklyml.git ../mkly
+          git clone --depth 1 https://github.com/HubDev-AI/mklyml-kits.git ../mkly-kits
+          git clone --depth 1 https://github.com/HubDev-AI/mklyml-plugins.git ../mkly-plugins
+
+      - name: Install dependencies
+        run: |
+          cd ../mkly && bun install --frozen-lockfile
+          cd ../mkly-kits && bun install --frozen-lockfile
+          cd ../mkly-kits/newsletter && bun install --frozen-lockfile
+          cd ../mkly-kits/docs && bun install --frozen-lockfile
+          cd ../mkly-plugins && bun install --frozen-lockfile
+          cd $GITHUB_WORKSPACE && bun install --frozen-lockfile
+
+      - name: Validate
+        run: bun run typecheck
+
+      - name: Build
+        run: bun run build:lib
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
