@@ -113,6 +113,13 @@ async function getSelectionState(page: Page): Promise<{
   });
 }
 
+async function getStyleRowLabels(page: Page, context: 'inspector' | 'popup'): Promise<string[]> {
+  const labels = await page
+    .locator(`[data-style-editor-context="${context}"] [data-style-row-label]`)
+    .allTextContents();
+  return [...new Set(labels.map((label) => label.trim()).filter(Boolean))].sort();
+}
+
 // ---------------------------------------------------------------------------
 // 1. SMOKE TESTS
 // ---------------------------------------------------------------------------
@@ -631,6 +638,163 @@ test.describe('Style Inspector', () => {
     // Should have "Self" tab and "Hover" tab visible
     await expect(page.getByRole('button', { name: 'Self', exact: true })).toBeVisible({ timeout: 3000 });
     await expect(page.getByRole('button', { name: 'Hover', exact: true })).toBeVisible({ timeout: 3000 });
+  });
+
+  test('inspector and popup expose the same Self controls for core/button', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/button',
+      'url: https://example.com',
+      'label: parity',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-core-button').first().click();
+    await page.waitForTimeout(600);
+
+    const stylesBtn = page.getByRole('button', { name: /Styles/i });
+    await expect(stylesBtn).toBeVisible({ timeout: 5000 });
+    await stylesBtn.click();
+    await page.waitForTimeout(200);
+
+    const inspectorLabels = await getStyleRowLabels(page, 'inspector');
+    expect(inspectorLabels.length).toBeGreaterThan(0);
+
+    await page.evaluate(() => {
+      // @ts-ignore
+      const s = window.__editorStore.getState();
+      // @ts-ignore
+      s.openStylePopup({
+        blockType: 'core/button',
+        target: 'self',
+        sourceLine: s.activeBlockLine ?? 3,
+        selectionId: s.selectionId ?? undefined,
+        anchorRect: { x: 320, y: 220, width: 8, height: 8 },
+      });
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.liquid-glass-overlay')).toBeVisible({ timeout: 3000 });
+
+    const popupLabels = await getStyleRowLabels(page, 'popup');
+    expect(popupLabels).toEqual(inspectorLabels);
+  });
+
+  test('inspector and popup expose the same Self controls for newsletter/featured', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '--- use: newsletter',
+      '',
+      '--- newsletter/featured',
+      'title: Featured parity',
+      'image: https://images.unsplash.com/photo-1639322537228-f710d846310a?w=800&h=400&fit=crop',
+      'source: Analysis',
+      'author: The Pulse AI',
+      'link: https://example.com/parity',
+      '',
+      'Body copy for parity.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(700);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-newsletter-featured').first().click();
+    await page.waitForTimeout(700);
+
+    const stylesBtn = page.getByRole('button', { name: /Styles/i });
+    await expect(stylesBtn).toBeVisible({ timeout: 5000 });
+    await stylesBtn.click();
+    await page.waitForTimeout(200);
+
+    const inspectorLabels = await getStyleRowLabels(page, 'inspector');
+    expect(inspectorLabels.length).toBeGreaterThan(0);
+
+    await page.evaluate(() => {
+      // @ts-ignore
+      const s = window.__editorStore.getState();
+      // @ts-ignore
+      s.openStylePopup({
+        blockType: 'newsletter/featured',
+        target: 'self',
+        sourceLine: s.activeBlockLine ?? 4,
+        selectionId: s.selectionId ?? undefined,
+        anchorRect: { x: 340, y: 220, width: 8, height: 8 },
+      });
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.liquid-glass-overlay')).toBeVisible({ timeout: 3000 });
+
+    const popupLabels = await getStyleRowLabels(page, 'popup');
+    expect(popupLabels).toEqual(inspectorLabels);
+  });
+
+  test('global Text token edit updates core/default preview copy color', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- style',
+      'text: #222222',
+      '',
+      '--- core/text',
+      'Global token test paragraph.',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(700);
+
+    // Focus a non-content special line so Global pane is shown.
+    await page.evaluate(() => {
+      // @ts-ignore
+      window.__editorStore.getState().focusBlock(1, 'mkly', 'navigate');
+    });
+    await page.waitForTimeout(400);
+
+    const textRow = page
+      .locator('[data-style-row]')
+      .filter({ has: page.locator('[data-style-row-label]', { hasText: /^Text$/ }) })
+      .first();
+    await expect(textRow).toBeVisible({ timeout: 3000 });
+    await textRow.locator('input[type="text"]').fill('#ff0000');
+    await page.waitForTimeout(700);
+
+    const frame = preview(page);
+    const color = await frame.locator('.mkly-core-text').first().evaluate((el) => getComputedStyle(el).color);
+    expect(color).toBe('rgb(255, 0, 0)');
+  });
+
+  test('advanced controls stay hidden by default and are revealed via More options', async ({ page }) => {
+    const source = [
+      '--- use: core',
+      '',
+      '--- core/card',
+      'title: Advanced controls check',
+      '',
+      'Body copy',
+    ].join('\n');
+    await setSource(page, source);
+    await page.waitForTimeout(500);
+
+    const frame = preview(page);
+    await frame.locator('.mkly-core-card').first().click();
+    await page.waitForTimeout(500);
+
+    const stylesBtn = page.getByRole('button', { name: /Styles/i });
+    await stylesBtn.click();
+    await page.waitForTimeout(250);
+
+    const layoutSector = page.locator('[data-style-sector="layout"]').first();
+    await expect(layoutSector).toBeVisible();
+    await layoutSector.getByRole('button', { name: /Layout/i }).first().click();
+    await page.waitForTimeout(150);
+    await expect(layoutSector.locator('[data-style-row-label]', { hasText: /^Overflow$/ })).toHaveCount(0);
+
+    const moreBtn = layoutSector.getByRole('button', { name: /More options/i });
+    await expect(moreBtn).toBeVisible();
+    await moreBtn.click();
+    await page.waitForTimeout(200);
+
+    await expect(layoutSector.locator('[data-style-row-label]', { hasText: /^Overflow$/ })).toHaveCount(1);
   });
 });
 
@@ -1914,10 +2078,10 @@ test.describe('Style Pick Full Workflow', () => {
     });
     expect(state.focusOrigin).toBe('edit');
     expect(state.activeBlockLine).toBe(3);
-    expect(state.cursorLine).toBe(3);
+    expect(state.cursorLine).toBe(4);
   });
 
-  test('style pick style change uses active selection even if style marker is missing', async ({ page }) => {
+  test('style pick requires live marker and retargets safely when marker is missing', async ({ page }) => {
     const source = [
       '--- use: core',
       '--- use: newsletter',
@@ -1958,8 +2122,16 @@ test.describe('Style Pick Full Workflow', () => {
     await page.waitForTimeout(700);
 
     const nextSource = await getSource(page);
-    expect(nextSource).toMatch(/\{\.s\d+\}/);
-    expect(nextSource).not.toMatch(/^---\s+newsletter\/recommendations:\s/m);
+    expect(nextSource).not.toMatch(/\{\.s\d+\}/);
+
+    const popupState = await page.evaluate(() => {
+      // @ts-ignore
+      const s = window.__editorStore.getState();
+      return {
+        target: s.stylePopup?.target ?? null,
+      };
+    });
+    expect(popupState.target).toBe('self');
   });
 
   test('style popup retargets to newly focused block and keeps style-pick mode active', async ({ page }) => {

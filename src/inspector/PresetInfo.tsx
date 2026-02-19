@@ -135,6 +135,126 @@ function writeGapScale(source: string, value: number): string {
   return source;
 }
 
+/** Parse the lineHeightScale value from a `--- style` block in mkly source. */
+function parseLineHeightScale(source: string): number {
+  const lines = source.split('\n');
+  let inStyleBlock = false;
+  for (const line of lines) {
+    if (/^---\s+style\b/.test(line)) {
+      inStyleBlock = true;
+      continue;
+    }
+    if (inStyleBlock) {
+      if (/^---\s/.test(line)) {
+        inStyleBlock = false;
+        continue;
+      }
+      const m = line.match(/^\s*lineHeightScale:\s*(.+)$/);
+      if (m) {
+        const val = parseFloat(m[1].trim());
+        if (!isNaN(val)) return val;
+      }
+    }
+  }
+  return 1;
+}
+
+/** Update or insert lineHeightScale in the source's `--- style` block. */
+function writeLineHeightScale(source: string, value: number): string {
+  const normalizeStyleSpacing = (rawLines: string[]): string[] => {
+    const lines = [...rawLines];
+    let styleStart = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (/^---\s+style\b/.test(lines[i])) {
+        styleStart = i;
+        break;
+      }
+    }
+    if (styleStart === -1) return lines;
+
+    while (styleStart > 0 && lines[styleStart - 1].trim() === '') {
+      lines.splice(styleStart - 1, 1);
+      styleStart--;
+    }
+    if (styleStart > 0 && lines[styleStart - 1].trim() !== '') {
+      lines.splice(styleStart, 0, '');
+      styleStart++;
+    }
+
+    let nextDirective = lines.length;
+    for (let i = styleStart + 1; i < lines.length; i++) {
+      if (/^---\s/.test(lines[i])) {
+        nextDirective = i;
+        break;
+      }
+    }
+
+    while (nextDirective > styleStart + 1 && lines[nextDirective - 1].trim() === '') {
+      lines.splice(nextDirective - 1, 1);
+      nextDirective--;
+    }
+    if (nextDirective < lines.length && lines[nextDirective - 1].trim() !== '') {
+      lines.splice(nextDirective, 0, '');
+    }
+
+    return lines;
+  };
+
+  const lines = source.split('\n');
+  const isDefault = Math.abs(value - 1) < 0.001;
+
+  let styleBlockStart = -1;
+  let lineHeightScaleLine = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^---\s+style\b/.test(lines[i])) {
+      styleBlockStart = i;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (/^---\s/.test(lines[j])) break;
+        if (/^\s*lineHeightScale:/.test(lines[j])) {
+          lineHeightScaleLine = j;
+        }
+      }
+      break;
+    }
+  }
+
+  if (lineHeightScaleLine !== -1) {
+    if (isDefault) {
+      lines.splice(lineHeightScaleLine, 1);
+    } else {
+      const existingIndent = lines[lineHeightScaleLine].match(/^(\s*)/)?.[1] ?? '';
+      lines[lineHeightScaleLine] = `${existingIndent}lineHeightScale: ${value}`;
+    }
+    return normalizeStyleSpacing(lines).join('\n');
+  }
+
+  if (styleBlockStart !== -1 && !isDefault) {
+    lines.splice(styleBlockStart + 1, 0, `lineHeightScale: ${value}`);
+    return normalizeStyleSpacing(lines).join('\n');
+  }
+
+  if (styleBlockStart === -1 && !isDefault) {
+    let insertIdx = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^---\s+(preset|theme|use|define-theme|define-preset)[\s:]/.test(lines[i])) {
+        insertIdx = i + 1;
+      } else if (/^---\s+meta\b/.test(lines[i])) {
+        insertIdx = i + 1;
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim() === '' || /^---\s/.test(lines[j])) break;
+          insertIdx = j + 1;
+        }
+      }
+    }
+    lines.splice(insertIdx, 0, `--- style`, `lineHeightScale: ${value}`, '');
+    return normalizeStyleSpacing(lines).join('\n');
+  }
+
+  return source;
+}
+
 interface PresetInfoProps {
   activePresets: string[];
   completionData: CompletionData;
@@ -145,6 +265,7 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
   const setSource = useEditorStore((s) => s.setSource);
   const availablePresets = completionData.presets;
   const [showGapHelp, setShowGapHelp] = useState(false);
+  const [showLhHelp, setShowLhHelp] = useState(false);
 
   const implicitPresets = useMemo(() => {
     if (activePresets.length > 0) return [];
@@ -163,6 +284,7 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
   }, [activePresets, source, completionData.kitInfo]);
 
   const gapScale = useMemo(() => parseGapScale(source), [source]);
+  const lineHeightScale = useMemo(() => parseLineHeightScale(source), [source]);
 
   const hasActivePreset = activePresets.length > 0 || implicitPresets.length > 0;
 
@@ -174,6 +296,16 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
   const handleGapScaleReset = useCallback(() => {
     const src = useEditorStore.getState().source;
     setSource(writeGapScale(src, 1));
+  }, [setSource]);
+
+  const handleLineHeightScaleChange = useCallback((value: number) => {
+    const src = useEditorStore.getState().source;
+    setSource(writeLineHeightScale(src, value));
+  }, [setSource]);
+
+  const handleLineHeightScaleReset = useCallback(() => {
+    const src = useEditorStore.getState().source;
+    setSource(writeLineHeightScale(src, 1));
   }, [setSource]);
 
   const updatePresets = useCallback((newPresets: string[]) => {
@@ -378,6 +510,14 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
               }}>
                 Block Spacing
               </span>
+              <span style={{
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: 'var(--ed-accent)',
+                fontWeight: 600,
+              }}>
+                {gapScale.toFixed(1)}x
+              </span>
               <button
                 onClick={() => setShowGapHelp((v) => !v)}
                 style={{
@@ -455,14 +595,13 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
             border: '1px solid var(--ed-border)',
           }}>
             <span style={{
-              fontSize: 10,
+              fontSize: 9,
               fontFamily: "'JetBrains Mono', monospace",
-              color: 'var(--ed-text)',
-              fontWeight: 600,
+              color: 'var(--ed-text-muted)',
               flexShrink: 0,
-              minWidth: 28,
+              minWidth: 20,
             }}>
-              {gapScale.toFixed(1)}x
+              0x
             </span>
             <input
               type="range"
@@ -474,15 +613,146 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
               style={{ flex: 1, minWidth: 0 }}
             />
             <span style={{
-              fontSize: 10,
+              fontSize: 9,
               fontFamily: "'JetBrains Mono', monospace",
-              color: 'var(--ed-text)',
-              fontWeight: 600,
+              color: 'var(--ed-text-muted)',
               flexShrink: 0,
-              minWidth: 28,
+              minWidth: 20,
               textAlign: 'right',
             }}>
-              {gapScale.toFixed(1)}x
+              2x
+            </span>
+          </div>
+
+          {/* Line Height Scale */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 10,
+            marginBottom: 6,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, position: 'relative' }}>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--ed-text-muted)',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}>
+                Line Height
+              </span>
+              <span style={{
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: 'var(--ed-accent)',
+                fontWeight: 600,
+              }}>
+                {lineHeightScale.toFixed(1)}x
+              </span>
+              <button
+                onClick={() => setShowLhHelp((v) => !v)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '1px solid var(--ed-border)',
+                  background: showLhHelp ? 'var(--ed-accent)' : 'none',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: showLhHelp ? '#fff' : 'var(--ed-text-muted)',
+                  cursor: 'pointer',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                ?
+              </button>
+              {showLhHelp && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: 0,
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  color: 'var(--ed-text-muted)',
+                  background: 'var(--ed-bg, #1a1a1a)',
+                  border: '1px solid var(--ed-border)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  zIndex: 10,
+                  width: 200,
+                }}>
+                  Scales the line-height of body text and paragraphs.
+                  <strong style={{ color: 'var(--ed-text)' }}> 1.0x</strong> is the preset default.
+                  Reduce for tighter, more compact text.
+                </div>
+              )}
+            </div>
+            {Math.abs(lineHeightScale - 1) >= 0.001 && (
+              <button
+                onClick={handleLineHeightScaleReset}
+                title="Reset to default (1.0x)"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--ed-border)',
+                  borderRadius: 4,
+                  color: 'var(--ed-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 9,
+                  lineHeight: 1,
+                  padding: '2px 6px',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  flexShrink: 0,
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--ed-surface)',
+            borderRadius: 6,
+            padding: '6px 10px',
+            border: '1px solid var(--ed-border)',
+          }}>
+            <span style={{
+              fontSize: 9,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: 'var(--ed-text-muted)',
+              flexShrink: 0,
+              minWidth: 24,
+            }}>
+              .8x
+            </span>
+            <input
+              type="range"
+              min={0.8}
+              max={1.2}
+              step={0.05}
+              value={lineHeightScale}
+              onChange={(e) => handleLineHeightScaleChange(parseFloat(e.target.value))}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <span style={{
+              fontSize: 9,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: 'var(--ed-text-muted)',
+              flexShrink: 0,
+              minWidth: 24,
+              textAlign: 'right',
+            }}>
+              1.2x
             </span>
           </div>
         </div>

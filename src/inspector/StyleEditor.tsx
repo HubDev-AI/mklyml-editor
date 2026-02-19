@@ -2,11 +2,10 @@ import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { ColorPicker } from './style-controls/ColorPicker';
 import { SpacingControl } from './style-controls/SpacingControl';
 import { AlignmentButtons } from './style-controls/AlignmentButtons';
+import { stepNumericValue } from './style-controls/numeric-step';
 import {
   getStyleValue,
-  DEFAULT_SELF_SECTORS,
-  HOVER_SECTOR,
-  TARGET_SECTORS,
+  resolveStyleSectors,
 } from '@mklyml/core';
 import type { StyleGraph, StyleSector, StylePropertyDef, TargetInfo } from '@mklyml/core';
 
@@ -17,26 +16,41 @@ interface StyleEditorProps {
   computedStyles: Record<string, string>;
   targets?: Record<string, TargetInfo>;
   styleHints?: Record<string, string[]>;
+  targetTag?: string;
   onStyleChange: (blockType: string, target: string, prop: string, value: string, label?: string) => void;
   initialTab?: string;
   defaultExpanded?: boolean;
+  context?: 'inspector' | 'popup';
 }
 
-const selectStyle: React.CSSProperties = {
+export const selectStyle: React.CSSProperties = {
   flex: 1, padding: '3px 4px', border: '1px solid var(--ed-border)',
   borderRadius: 4, background: 'var(--ed-glass-bg)', color: 'var(--ed-text)',
   fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif",
 };
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   flex: 1, padding: '3px 6px', border: '1px solid var(--ed-border)',
   borderRadius: 4, background: 'var(--ed-glass-bg)', color: 'var(--ed-text)',
   fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
 };
 
-export function StyleEditor({ blockType, label, styleGraph, computedStyles, targets, styleHints, onStyleChange, initialTab, defaultExpanded }: StyleEditorProps) {
+export function StyleEditor({
+  blockType,
+  label,
+  styleGraph,
+  computedStyles,
+  targets,
+  styleHints,
+  targetTag,
+  onStyleChange,
+  initialTab,
+  defaultExpanded,
+  context = 'inspector',
+}: StyleEditorProps) {
   const [collapsed, setCollapsed] = useState(!defaultExpanded);
   const [activeTab, setActiveTab] = useState<string>(initialTab ?? 'self');
+  const [showAdvancedBySector, setShowAdvancedBySector] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
@@ -51,26 +65,13 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
 
   const targetEntries = targets ? Object.entries(targets) : [];
 
-  // Determine which sectors to show based on the active tab
-  const isHover = activeTab === 'self:hover';
   const isSelf = activeTab === 'self';
-  const isTarget = !isSelf && !isHover;
-
-  const rawSectors: StyleSector[] = isHover
-    ? [HOVER_SECTOR]
-    : isTarget
-      ? TARGET_SECTORS
-      : DEFAULT_SELF_SECTORS;
-
-  // Filter sectors by styleHints (if provided).
-  // Tag targets (">p", ">h1") skip filtering — they're ad-hoc and need all properties.
-  const isTagTarget = activeTab.startsWith('>');
-  const allowedProps = isTagTarget
-    ? (styleHints?.['>'] ?? undefined)
-    : (styleHints?.[activeTab] ?? styleHints?.['self']);
-  const sectors = allowedProps
-    ? filterSectors(rawSectors, allowedProps)
-    : rawSectors;
+  const resolved = resolveStyleSectors({
+    target: activeTab,
+    styleHints,
+    targetTag: activeTab.startsWith('>.') ? targetTag : undefined,
+  });
+  const sectors = resolved.sectors;
 
   // Check if any target has active styles
   const hasAnyTargetStyles = g ? targetEntries.some(([name]) =>
@@ -78,7 +79,7 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
   ) : false;
 
   return (
-    <div style={{ borderTop: '1px solid var(--ed-border)', padding: '0 12px' }}>
+    <div data-style-editor-context={context} style={{ borderTop: '1px solid var(--ed-border)', padding: '0 12px' }}>
       <button
         onClick={() => setCollapsed(!collapsed)}
         style={{
@@ -131,19 +132,39 @@ export function StyleEditor({ blockType, label, styleGraph, computedStyles, targ
           </div>
 
           {/* Sectors */}
-          {sectors.map(sector => (
-            <SectorPanel key={sector.id} sector={sector}>
-              {sector.properties.map(prop => (
-                <PropertyControl
-                  key={prop.name}
-                  def={prop}
-                  value={getVal(g, bt, activeTab, prop.name, label)}
-                  computed={isSelf ? computedStyles[kebabToCamel(prop.name)] : undefined}
-                  onChange={(v) => setStyle(prop.name, v)}
-                />
-              ))}
-            </SectorPanel>
-          ))}
+          {sectors.map((sector) => {
+            const sectorKey = `${activeTab}:${sector.id}`;
+            const advancedCount = sector.properties.filter((prop) => prop.advanced).length;
+            const basicCount = sector.properties.length - advancedCount;
+            const showAdvanced = basicCount === 0 || !!showAdvancedBySector[sectorKey];
+            const visibleProps = sector.properties.filter((prop) => !prop.advanced || showAdvanced);
+
+            return (
+              <SectorPanel
+                key={sector.id}
+                sector={sector}
+                advancedCount={advancedCount}
+                showAdvanced={showAdvanced}
+                canToggleAdvanced={advancedCount > 0 && basicCount > 0}
+                onToggleAdvanced={() => {
+                  setShowAdvancedBySector((prev) => ({
+                    ...prev,
+                    [sectorKey]: !showAdvanced,
+                  }));
+                }}
+              >
+                {visibleProps.map((prop) => (
+                  <PropertyControl
+                    key={prop.name}
+                    def={prop}
+                    value={getVal(g, bt, activeTab, prop.name, label)}
+                    computed={isSelf ? computedStyles[kebabToCamel(prop.name)] : undefined}
+                    onChange={(v) => setStyle(prop.name, v)}
+                  />
+                ))}
+              </SectorPanel>
+            );
+          })}
         </div>
       )}
     </div>
@@ -191,11 +212,25 @@ function TabButton({ label, value, active, onClick, dot, title }: {
 
 const EXPANDED_BY_DEFAULT = new Set(['Typography', 'Background']);
 
-function SectorPanel({ sector, children }: { sector: StyleSector; children: ReactNode }) {
+function SectorPanel({
+  sector,
+  advancedCount,
+  showAdvanced,
+  canToggleAdvanced,
+  onToggleAdvanced,
+  children,
+}: {
+  sector: StyleSector;
+  advancedCount: number;
+  showAdvanced: boolean;
+  canToggleAdvanced: boolean;
+  onToggleAdvanced: () => void;
+  children: ReactNode;
+}) {
   const [expanded, setExpanded] = useState(EXPANDED_BY_DEFAULT.has(sector.label));
 
   return (
-    <div>
+    <div data-style-sector={sector.id}>
       <button
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -214,6 +249,25 @@ function SectorPanel({ sector, children }: { sector: StyleSector; children: Reac
       {expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {children}
+          {canToggleAdvanced && (
+            <button
+              type="button"
+              onClick={onToggleAdvanced}
+              style={{
+                alignSelf: 'flex-start',
+                border: '1px solid var(--ed-border)',
+                borderRadius: 4,
+                background: 'var(--ed-glass-bg)',
+                color: 'var(--ed-text-muted)',
+                fontSize: 10,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                cursor: 'pointer',
+                padding: '2px 6px',
+              }}
+            >
+              {showAdvanced ? 'Hide options' : `More options (${advancedCount})`}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -280,6 +334,17 @@ function PropertyControl({ def, value, computed, onChange }: {
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+              const direction = e.key === 'ArrowUp' ? 1 : -1;
+              const next = stepNumericValue(value, direction, {
+                shiftKey: e.shiftKey,
+                altKey: e.altKey,
+              });
+              if (!next) return;
+              e.preventDefault();
+              onChange(next);
+            }}
             placeholder={computed || def.placeholder || ''}
             style={inputStyle}
           />
@@ -291,16 +356,27 @@ function PropertyControl({ def, value, computed, onChange }: {
   }
 }
 
-function StyleRow({ label, children }: { label: string; children: React.ReactNode }) {
+function StyleRow({ label, children, labelWidth }: { label: string; children: React.ReactNode; labelWidth?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: 'var(--ed-text-muted)', minWidth: 60, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</span>
+    <div data-style-row style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span
+        data-style-row-label
+        style={{
+          fontSize: 11,
+          color: 'var(--ed-text-muted)',
+          minWidth: labelWidth ?? 60,
+          width: labelWidth,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        {label}
+      </span>
       {children}
     </div>
   );
 }
 
-function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string; group?: string }>; onChange: (v: string) => void }) {
+export function PresetSelect({ value, presets, onChange }: { value: string; presets: Array<{ label: string; value: string; group?: string }>; onChange: (v: string) => void }) {
   const isCustom = value !== '' && !presets.some(p => p.value === value);
   const hasGroups = presets.some(p => p.group);
 
@@ -362,20 +438,6 @@ function kebabToCamel(s: string): string {
 }
 
 /** Filter sectors to only include properties in the allowed list. Drops empty sectors. */
-function filterSectors(sectors: StyleSector[], allowed: string[]): StyleSector[] {
-  const set = new Set(allowed);
-  const result: StyleSector[] = [];
-  for (const sector of sectors) {
-    const filtered = sector.properties.filter(p => set.has(p.name));
-    if (filtered.length > 0) {
-      result.push(filtered.length === sector.properties.length
-        ? sector
-        : { ...sector, properties: filtered });
-    }
-  }
-  return result;
-}
-
 /** Format a descendant target for tab display: ">p" → "<p>", ">.s1" → ".s1", ">p:nth-of-type(2)" → "<p>#2" */
 function formatTagTab(target: string): string {
   const raw = target.slice(1);

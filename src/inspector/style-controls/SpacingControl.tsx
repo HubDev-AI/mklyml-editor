@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { stepNumericValue } from './numeric-step';
 
 interface SpacingControlProps {
   label: string;
@@ -50,12 +51,60 @@ export function SpacingControl({ label, value, computed, onChange }: SpacingCont
     <div>
       <span style={{ fontSize: 11, color: 'var(--ed-text-muted)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</span>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, marginTop: 4, padding: 4, border: '1px dashed var(--ed-border)', borderRadius: 4 }}>
-        <input style={inputStyle} value={top} onChange={(e) => update(0, e.target.value)} placeholder={cTop} />
+        <input
+          style={inputStyle}
+          value={top}
+          onChange={(e) => update(0, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            const next = stepNumericValue(top, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+            if (!next) return;
+            e.preventDefault();
+            update(0, next);
+          }}
+          placeholder={cTop}
+        />
         <div style={{ display: 'flex', gap: 16 }}>
-          <input style={inputStyle} value={left} onChange={(e) => update(3, e.target.value)} placeholder={cLeft} />
-          <input style={inputStyle} value={right} onChange={(e) => update(1, e.target.value)} placeholder={cRight} />
+          <input
+            style={inputStyle}
+            value={left}
+            onChange={(e) => update(3, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+              const next = stepNumericValue(left, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+              if (!next) return;
+              e.preventDefault();
+              update(3, next);
+            }}
+            placeholder={cLeft}
+          />
+          <input
+            style={inputStyle}
+            value={right}
+            onChange={(e) => update(1, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+              const next = stepNumericValue(right, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+              if (!next) return;
+              e.preventDefault();
+              update(1, next);
+            }}
+            placeholder={cRight}
+          />
         </div>
-        <input style={inputStyle} value={bottom} onChange={(e) => update(2, e.target.value)} placeholder={cBottom} />
+        <input
+          style={inputStyle}
+          value={bottom}
+          onChange={(e) => update(2, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            const next = stepNumericValue(bottom, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+            if (!next) return;
+            e.preventDefault();
+            update(2, next);
+          }}
+          placeholder={cBottom}
+        />
       </div>
     </div>
   );
