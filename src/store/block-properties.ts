@@ -18,6 +18,23 @@ export interface PropertyChangeResult {
   newSource: string;
 }
 
+function upsertStyleVariable(graph: StyleGraph, name: string, value: string): StyleGraph {
+  const variables = [...graph.variables];
+  const idx = variables.findIndex((item) => item.name === name);
+  if (value === '') {
+    if (idx !== -1) variables.splice(idx, 1);
+  } else if (idx !== -1) {
+    variables[idx] = { ...variables[idx], value };
+  } else {
+    variables.push({ name, value });
+  }
+  return { ...graph, variables };
+}
+
+export function getStyleVariableValue(graph: StyleGraph | null, name: string): string | undefined {
+  return graph?.variables.find((item) => item.name === name)?.value;
+}
+
 /**
  * Apply a non-style property change to a block in the source.
  * Handles block properties like title, url, level, etc.
@@ -102,6 +119,23 @@ export function applyStyleChange(
   // Patch the --- style block in source
   const { result: newSource, lineDelta, lineShiftFrom } = patchStyleBlock(source, serialized);
 
+  return { newSource, newGraph, lineDelta, lineShiftFrom };
+}
+
+/**
+ * Apply a style variable change in the `--- style` block.
+ * Variables are top-level entries like `accent`, `fontBody`, `gapScale`.
+ */
+export function applyStyleVariableChange(
+  source: string,
+  styleGraph: StyleGraph | null,
+  name: string,
+  value: string,
+): PropertyChangeResult & { newGraph: StyleGraph; lineDelta: number; lineShiftFrom: number } {
+  const baseGraph = styleGraph ?? parseSourceStyleGraph(source);
+  const newGraph = upsertStyleVariable(baseGraph, name, value.trim());
+  const serialized = serializeStyleGraph(newGraph);
+  const { result: newSource, lineDelta, lineShiftFrom } = patchStyleBlock(source, serialized);
   return { newSource, newGraph, lineDelta, lineShiftFrom };
 }
 

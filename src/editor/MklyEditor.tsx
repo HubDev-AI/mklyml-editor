@@ -70,23 +70,33 @@ const dropLineField = StateField.define<DecorationSet>({
 
 function inferStylePickTargetFromSourceLine(
   lineText: string,
-): { target: string; targetLine?: number } {
+): { target: string; targetTag?: string } {
   const trimmed = lineText.trim();
   if (!trimmed || trimmed.startsWith('---') || PROPERTY_KEY_RE.test(trimmed)) {
     return { target: 'self' };
   }
 
+  const inferTag = (content: string): string => {
+    const normalized = content.replace(/\{\.([A-Za-z][\w-]*)\}\s*$/, '').trim();
+    const headingMatch = normalized.match(/^(#{1,6})\s+/);
+    if (headingMatch) return `h${headingMatch[1].length}`;
+    if (/^(?:[-*+]\s+|\d+\.\s+)/.test(normalized)) return 'li';
+    return 'p';
+  };
+
   const classMatch = trimmed.match(/\{\.([A-Za-z][\w-]*)\}\s*$/);
-  if (classMatch) return { target: `>.${classMatch[1]}` };
-
-  const headingMatch = trimmed.match(/^(#{1,6})\s+/);
-  if (headingMatch) return { target: `>h${headingMatch[1].length}` };
-
-  if (/^(?:[-*+]\s+|\d+\.\s+)/.test(trimmed)) {
-    return { target: '>li' };
+  if (classMatch) {
+    return { target: `>.${classMatch[1]}`, targetTag: inferTag(trimmed) };
   }
 
-  return { target: '>p' };
+  const headingMatch = trimmed.match(/^(#{1,6})\s+/);
+  if (headingMatch) return { target: `>h${headingMatch[1].length}`, targetTag: `h${headingMatch[1].length}` };
+
+  if (/^(?:[-*+]\s+|\d+\.\s+)/.test(trimmed)) {
+    return { target: '>li', targetTag: 'li' };
+  }
+
+  return { target: '>p', targetTag: 'p' };
 }
 
 export function MklyEditor({ completionData }: MklyEditorProps) {
@@ -402,6 +412,7 @@ export function MklyEditor({ completionData }: MklyEditorProps) {
       store.openStylePopup({
         blockType: block.type,
         target: inferred.target,
+        targetTag: inferred.targetTag,
         label: block.label,
         sourceLine: blockLine,
         targetLine,

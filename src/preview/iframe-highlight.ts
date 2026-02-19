@@ -152,10 +152,8 @@ export function syncActiveBlock(
   activeSelectionId?: string | null,
 ) {
   doc.querySelectorAll('[data-mkly-active]').forEach((el) => el.removeAttribute('data-mkly-active'));
-  if (!styleTarget) {
-    clearStylePickSelection(doc);
-  }
   const styleSelectionId = styleTarget?.selectionId ?? null;
+  const markerSelectionId = styleSelectionId ?? activeSelectionId ?? null;
   if (activeBlockLine !== null) {
     const el = resolveActiveBlockElement(doc, activeBlockLine, selectedLine);
     if (el) {
@@ -176,15 +174,17 @@ export function syncActiveBlock(
         }
       }
       highlightEl.setAttribute('data-mkly-active', '');
-      if (styleSelectionId && styleTarget) {
+      if (markerSelectionId) {
         clearStylePickSelection(doc);
-        highlightEl.setAttribute(STYLE_SELECTED_ATTR, styleSelectionId);
+        highlightEl.setAttribute(STYLE_SELECTED_ATTR, markerSelectionId);
+      } else {
+        clearStylePickSelection(doc);
       }
       if (shouldScrollToBlock(focusOrigin, selfOrigin, focusIntent, scrollLock)) {
         highlightEl.scrollIntoView({ block: 'center' });
       }
     }
-  } else if (styleSelectionId || activeSelectionId) {
+  } else {
     clearStylePickSelection(doc);
   }
 }
@@ -354,9 +354,13 @@ export function bindStylePickClick(
     const store = useEditorStore.getState();
     store.focusBlock(focusLine, origin);
     const selectionId = useEditorStore.getState().selectionId;
+    const targetTag = target.startsWith('>')
+      ? selectedEl.tagName.toLowerCase()
+      : undefined;
     store.openStylePopup({
       blockType,
       target,
+      targetTag,
       label,
       sourceLine: line,
       targetLine,

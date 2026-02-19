@@ -21,6 +21,7 @@
     "dev": "bunx --bun vite",
     "build": "vite build",
     "build:lib": "vite build --config vite.lib.config.ts",
+    "style:matrix": "bun scripts/generate-style-surface-matrix.ts",
     "preview": "vite preview",
     "prepublishOnly": "bun run build:lib",
     "typecheck": "bunx tsc --noEmit",

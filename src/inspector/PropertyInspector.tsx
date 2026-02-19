@@ -8,6 +8,7 @@ import { MetaInspector } from './MetaInspector';
 import { NoSelection } from './NoSelection';
 import { ThemeInfo } from './ThemeInfo';
 import { PresetInfo } from './PresetInfo';
+import { GlobalStyleInfo } from './GlobalStyleInfo';
 import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
@@ -92,6 +93,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
         <NoSelection />
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
         <PresetInfo activePresets={activePresets} completionData={completionData} />
+        <GlobalStyleInfo />
       </div>
     );
   }
@@ -109,6 +111,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
         />
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
         {kitHasPresets && <PresetInfo activePresets={activePresets} completionData={completionData} />}
+        <GlobalStyleInfo />
       </div>
     );
   }
@@ -133,6 +136,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
         <PresetInfo activePresets={activePresets} completionData={completionData} />
+        <GlobalStyleInfo />
       </div>
     );
   }
@@ -143,6 +147,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
         <ThemeInfo activeThemes={activeThemes} completionData={completionData} />
         <PresetInfo activePresets={activePresets} completionData={completionData} />
+        <GlobalStyleInfo />
       </div>
     );
   }
@@ -181,6 +186,7 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
         targets={blockTargets}
         styleHints={blockStyleHints}
         onStyleChange={handleStyleChange}
+        context="inspector"
       />
       {blockDocs && (
         <BlockDocsPanel

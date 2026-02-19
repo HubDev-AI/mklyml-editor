@@ -214,6 +214,7 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
             store.openStylePopup({
               blockType,
               target,
+              targetTag: target.startsWith('>') ? (tag ?? undefined) : undefined,
               label: block?.label,
               sourceLine: blockLine,
               targetLine: target.startsWith('>') ? sourceLine : undefined,

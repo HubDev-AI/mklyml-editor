@@ -83,6 +83,7 @@ interface EditorState {
   stylePopup: {
     blockType: string;
     target: string;        // 'self', 'img', 'link', '>.s1', '>li', etc.
+    targetTag?: string;    // exact tag that originated descendant targeting (used for class targets like >.s1)
     label?: string;
     sourceLine: number;    // block's source line — used for cursor adjustment after style changes
     targetLine?: number;   // content element's source line — for deferred class injection
@@ -417,6 +418,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           blockType: blockType ?? nextStylePopup.blockType,
           sourceLine: blockLine,
           target: 'self',
+          targetTag: undefined,
           label: undefined,
           targetLine: undefined,
           targetIndex: undefined,

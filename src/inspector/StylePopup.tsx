@@ -202,6 +202,7 @@ export function StylePopup({ completionData }: StylePopupProps) {
               sourceLine: nextBlockLine,
               blockType: state.selection.blockType ?? state.stylePopup.blockType,
               target: 'self',
+              targetTag: undefined,
               label: undefined,
               targetLine: undefined,
               targetIndex: undefined,
@@ -229,6 +230,7 @@ export function StylePopup({ completionData }: StylePopupProps) {
         console.warn('[mkly-style] Missing target line for tag selector, aborting style update.');
         return;
       }
+      const rawTag = workingTarget.slice(1).replace(/:nth-of-type\(\d+\)$/g, '');
       const className = generateStyleClass(workingSource);
       const isVerbatim = completionData.contentModes.get(blockType) === 'verbatim';
       const injected = isVerbatim
@@ -241,6 +243,7 @@ export function StylePopup({ completionData }: StylePopupProps) {
         if (nextPopup) {
           nextPopup.target = workingTarget;
           nextPopup.targetLine = workingTargetLine;
+          nextPopup.targetTag = rawTag;
         }
       }
     }
@@ -419,14 +422,16 @@ export function StylePopup({ completionData }: StylePopupProps) {
         <StyleEditor
           blockType={popup.blockType}
           label={popup.label}
-          styleGraph={styleGraph}
-          computedStyles={computedStyles}
-          targets={blockTargets}
-          styleHints={blockStyleHints}
-          onStyleChange={handleStyleChange}
-          initialTab={effectiveTab}
-          defaultExpanded
-        />
+        styleGraph={styleGraph}
+        computedStyles={computedStyles}
+        targets={blockTargets}
+        styleHints={blockStyleHints}
+        targetTag={popup.targetTag}
+        onStyleChange={handleStyleChange}
+        initialTab={effectiveTab}
+        defaultExpanded
+        context="popup"
+      />
       </div>
     </EditorErrorBoundary>,
     document.body,
