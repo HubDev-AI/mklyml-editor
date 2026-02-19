@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { stepNumericValue } from './numeric-step';
+import { stepNumericValueOrInit } from './numeric-step';
 
 interface SpacingControlProps {
   label: string;
@@ -57,7 +57,13 @@ export function SpacingControl({ label, value, computed, onChange }: SpacingCont
           onChange={(e) => update(0, e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-            const next = stepNumericValue(top, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+            const next = stepNumericValueOrInit(top, e.key === 'ArrowUp' ? 1 : -1, {
+              shiftKey: e.shiftKey,
+              altKey: e.altKey,
+            }, {
+              fallbackSample: cTop,
+              defaultUnit: 'px',
+            });
             if (!next) return;
             e.preventDefault();
             update(0, next);
@@ -71,7 +77,13 @@ export function SpacingControl({ label, value, computed, onChange }: SpacingCont
             onChange={(e) => update(3, e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-              const next = stepNumericValue(left, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+              const next = stepNumericValueOrInit(left, e.key === 'ArrowUp' ? 1 : -1, {
+                shiftKey: e.shiftKey,
+                altKey: e.altKey,
+              }, {
+                fallbackSample: cLeft,
+                defaultUnit: 'px',
+              });
               if (!next) return;
               e.preventDefault();
               update(3, next);
@@ -84,7 +96,13 @@ export function SpacingControl({ label, value, computed, onChange }: SpacingCont
             onChange={(e) => update(1, e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-              const next = stepNumericValue(right, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+              const next = stepNumericValueOrInit(right, e.key === 'ArrowUp' ? 1 : -1, {
+                shiftKey: e.shiftKey,
+                altKey: e.altKey,
+              }, {
+                fallbackSample: cRight,
+                defaultUnit: 'px',
+              });
               if (!next) return;
               e.preventDefault();
               update(1, next);
@@ -98,7 +116,13 @@ export function SpacingControl({ label, value, computed, onChange }: SpacingCont
           onChange={(e) => update(2, e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-            const next = stepNumericValue(bottom, e.key === 'ArrowUp' ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey });
+            const next = stepNumericValueOrInit(bottom, e.key === 'ArrowUp' ? 1 : -1, {
+              shiftKey: e.shiftKey,
+              altKey: e.altKey,
+            }, {
+              fallbackSample: cBottom,
+              defaultUnit: 'px',
+            });
             if (!next) return;
             e.preventDefault();
             update(2, next);

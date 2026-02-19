@@ -54,3 +54,24 @@ export function stepNumericValue(
   const minDecimals = Math.max(countDecimals(baseStep), countDecimals(step));
   return `${formatNumeric(next, minDecimals)}${unit}`;
 }
+
+function detectUnit(sample: string | undefined): string {
+  if (!sample) return '';
+  const match = sample.match(/-?\d*\.?\d+\s*([a-z%]+)/i);
+  return match?.[1] ?? '';
+}
+
+export function stepNumericValueOrInit(
+  value: string,
+  direction: 1 | -1,
+  modifiers: { shiftKey: boolean; altKey: boolean },
+  options?: { fallbackSample?: string; defaultUnit?: string },
+): string | null {
+  const stepped = stepNumericValue(value, direction, modifiers);
+  if (stepped) return stepped;
+  if (value.trim() !== '') return null;
+
+  const unit = options?.defaultUnit ?? detectUnit(options?.fallbackSample);
+  const seed = `0${unit}`;
+  return stepNumericValue(seed, direction, modifiers);
+}

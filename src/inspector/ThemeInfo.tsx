@@ -49,6 +49,14 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
     updateThemes(activeThemes.map((t) => (t === oldName ? newName : t)));
   }, [activeThemes, updateThemes]);
 
+  const stepThemeName = useCallback((currentName: string, direction: 1 | -1): string | null => {
+    if (availableThemes.length === 0) return null;
+    const idx = availableThemes.findIndex((t) => t.label === currentName);
+    if (idx === -1) return availableThemes[0]?.label ?? null;
+    const nextIdx = (idx + direction + availableThemes.length) % availableThemes.length;
+    return availableThemes[nextIdx]?.label ?? null;
+  }, [availableThemes]);
+
   return (
     <div style={{
       borderTop: '1px solid var(--ed-border)',
@@ -108,6 +116,14 @@ export function ThemeInfo({ activeThemes, completionData }: ThemeInfoProps) {
               <select
                 value={name}
                 onChange={(e) => handleChange(name, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                  const direction = e.key === 'ArrowUp' ? -1 : 1;
+                  const next = stepThemeName(name, direction);
+                  if (!next || next === name) return;
+                  e.preventDefault();
+                  handleChange(name, next);
+                }}
                 title={availableThemes.find((t) => t.label === name)?.description}
                 style={{
                   flex: 1,
