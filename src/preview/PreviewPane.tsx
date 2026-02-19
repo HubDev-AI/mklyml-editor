@@ -33,7 +33,7 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
-  const stylePopup = useEditorStore((s) => s.stylePopup);
+  const styleSelection = useEditorStore((s) => s.styleSelection);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncRef = useRef(new SyncEngine());
   const prettyHtml = useMemo(() => prettifyHtml(html), [html]);
@@ -110,19 +110,19 @@ export function PreviewPane({ onInsertBlock }: PreviewPaneProps) {
     if (!iframeVisible) return;
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    const styleTarget = stylePopup
+    const styleTarget = styleSelection
       ? {
-          blockType: stylePopup.blockType,
-          target: stylePopup.target,
-          targetIndex: stylePopup.targetIndex,
-          selectionId: stylePopup.selectionId,
+          blockType: styleSelection.blockType,
+          target: styleSelection.target,
+          targetIndex: styleSelection.targetIndex,
+          selectionId: styleSelection.selectionId,
         }
       : null;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'preview', focusIntent, scrollLock, styleTarget, cursorLine, selectionId);
     if (activeBlockLine !== null) {
       setComputedStyles(queryComputedStyles(doc, activeBlockLine, styleTarget, cursorLine));
     }
-  }, [activeBlockLine, cursorLine, selectionId, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, stylePopup, html]);
+  }, [activeBlockLine, cursorLine, selectionId, focusOrigin, focusIntent, scrollLock, focusVersion, viewMode, outputMode, setComputedStyles, styleSelection, html]);
 
   // Style pick mode: toggle hover/click handlers in preview iframe
   useEffect(() => {

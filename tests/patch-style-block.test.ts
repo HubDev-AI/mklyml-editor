@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { emptyStyleGraph, mergeRule, CORE_KIT } from '@mklyml/core';
 import { NEWSLETTER_KIT } from '@mklyml/kits/newsletter';
-import { applyStyleChange, parseSourceStyleGraph } from '../src/store/block-properties';
+import { adjustLineForStylePatch, applyStyleChange, parseSourceStyleGraph } from '../src/store/block-properties';
 import { mkly } from '@mklyml/core';
 
 const META = '--- meta\nversion: 1\n';
@@ -61,6 +61,92 @@ describe('patchStyleBlock: create style block', () => {
 // ===== patchStyleBlock: Update Existing Style Block =====
 
 describe('patchStyleBlock: update existing style block', () => {
+  it('keeps exactly one blank line before the next directive when style block is updated', () => {
+    const source = [
+      '--- use: core',
+      '',
+      META,
+      '--- style',
+      '',
+      'text: #832a2a',
+      '',
+      'newsletter/quickHits',
+      '  color: #1e3cb3',
+      '',
+      '',
+      '--- core/header',
+      'title: Test',
+      '',
+      'Body',
+    ].join('\n');
+
+    const graph = parseSourceStyleGraph(source);
+    const { newSource } = applyStyleChange(
+      source,
+      graph,
+      'newsletter/quickHits',
+      '>.s1',
+      'color',
+      '#269762',
+    );
+
+    const lines = newSource.split('\n');
+    const styleStart = lines.findIndex((line) => line.trim() === '--- style');
+    const nextDirective = lines.findIndex(
+      (line, idx) => idx > styleStart && /^---\s+[\w/]/.test(line.trim()),
+    );
+    expect(styleStart).toBeGreaterThan(-1);
+    expect(nextDirective).toBeGreaterThan(styleStart);
+
+    let blankCount = 0;
+    for (let i = nextDirective - 1; i > styleStart; i--) {
+      if (lines[i].trim() !== '') break;
+      blankCount++;
+    }
+    expect(blankCount).toBe(1);
+  });
+
+  it('collapses legacy extra blank lines at style block bottom after style edit', () => {
+    const source = [
+      '--- style',
+      '',
+      'text: #832a2a',
+      '',
+      'newsletter/quickHits',
+      '  color: #1e3cb3',
+      '',
+      '',
+      '--- core/header',
+      'title: Test',
+    ].join('\n');
+
+    const graph = parseSourceStyleGraph(source);
+    const { newSource } = applyStyleChange(
+      source,
+      graph,
+      'newsletter/quickHits',
+      '>.s1',
+      'color',
+      '#269762',
+    );
+
+    const lines = newSource.split('\n');
+    const styleStart = lines.findIndex((line) => line.trim() === '--- style');
+    const nextDirective = lines.findIndex(
+      (line, idx) => idx > styleStart && /^---\s+[\w/]/.test(line.trim()),
+    );
+    expect(styleStart).toBeGreaterThan(-1);
+    expect(nextDirective).toBeGreaterThan(styleStart);
+
+    let blankCount = 0;
+    for (let i = nextDirective - 1; i > styleStart; i--) {
+      if (lines[i].trim() !== '') break;
+      blankCount++;
+    }
+    expect(blankCount).toBe(1);
+    assertClean(newSource);
+  });
+
   it('adds property to existing rule', () => {
     const source = [
       '--- use: core',
@@ -299,9 +385,7 @@ describe('patchStyleBlock: source integrity', () => {
     const graph = parseSourceStyleGraph(source);
     const step = applyStyleChange(source, graph, 'core/heading', 'self', 'fontSize', '24px');
 
-    const adjustedLine = selectedLine > step.shiftAfterLine
-      ? selectedLine + step.lineDelta
-      : selectedLine;
+    const adjustedLine = adjustLineForStylePatch(selectedLine, step.lineDelta, step.lineShiftFrom);
 
     const lines = step.newSource.split('\n');
     expect(lines[adjustedLine - 1]).toBe('--- core/heading');
@@ -324,9 +408,7 @@ describe('patchStyleBlock: source integrity', () => {
     const graph = parseSourceStyleGraph(source);
     const step = applyStyleChange(source, graph, 'core/heading', 'self', 'fontSize', '24px');
 
-    const adjustedLine = selectedLine > step.shiftAfterLine
-      ? selectedLine + step.lineDelta
-      : selectedLine;
+    const adjustedLine = adjustLineForStylePatch(selectedLine, step.lineDelta, step.lineShiftFrom);
 
     const lines = step.newSource.split('\n');
     expect(lines[adjustedLine - 1]).toBe('--- core/heading');

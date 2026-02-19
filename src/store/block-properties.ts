@@ -155,6 +155,10 @@ export function adjustLineForStylePatch(line: number, lineDelta: number, lineShi
 function patchStyleBlock(source: string, newContent: string): { result: string; lineDelta: number; lineShiftFrom: number } {
   const lines = source.split('\n');
   const oldLineCount = lines.length;
+  // Normalization guard: callers may pass newline-terminated style text.
+  // Keep interior spacing, but drop outer blank lines so style/footer spacing
+  // is controlled only by this patcher.
+  const normalizedContent = newContent.trim();
 
   // Find existing --- style block
   let styleStart = -1;
@@ -180,12 +184,13 @@ function patchStyleBlock(source: string, newContent: string): { result: string; 
     // Replace existing style block content (keep the --- style header)
     const before = lines.slice(0, styleStart + 1);
     const after = lines.slice(styleEnd);
+    while (after.length > 0 && after[0].trim() === '') after.shift();
 
-    // Add blank line between content and next block if needed
-    const needsTrailingBlank = after.length > 0 && after[0].trim() !== '';
-    const contentLines = newContent ? ['', ...newContent.split('\n'), ''] : [''];
+    // Keep one visual spacer after `--- style`, and exactly one spacer before the next directive.
+    const contentLines = normalizedContent ? ['', ...normalizedContent.split('\n')] : [];
+    const separatorBeforeNextDirective = after.length > 0 ? [''] : [];
 
-    const resultLines = [...before, ...contentLines, ...(needsTrailingBlank ? [''] : []), ...after];
+    const resultLines = [...before, ...contentLines, ...separatorBeforeNextDirective, ...after];
     return {
       result: resultLines.join('\n'),
       lineDelta: resultLines.length - oldLineCount,
@@ -212,24 +217,38 @@ function patchStyleBlock(source: string, newContent: string): { result: string; 
     }
   }
 
-  const styleBlock = newContent
-    ? `\n--- style\n${newContent}\n`
-    : '\n--- style\n';
+  const styleLines = ['--- style'];
+  if (normalizedContent) {
+    styleLines.push('');
+    styleLines.push(...normalizedContent.split('\n'));
+  }
 
   if (insertAfter !== -1) {
     const before = lines.slice(0, insertAfter + 1);
     const after = lines.slice(insertAfter + 1);
-    const result = [...before, styleBlock, ...after].join('\n');
+    while (after.length > 0 && after[0].trim() === '') after.shift();
+    const separatorBeforeStyle = before.length > 0 && before[before.length - 1].trim() !== ''
+      ? ['']
+      : [];
+    const separatorBeforeNextDirective = after.length > 0 ? [''] : [];
+    const resultLines = [...before, ...separatorBeforeStyle, ...styleLines, ...separatorBeforeNextDirective, ...after];
+    const result = resultLines.join('\n');
     return {
       result,
-      lineDelta: result.split('\n').length - oldLineCount,
+      lineDelta: resultLines.length - oldLineCount,
       lineShiftFrom: insertAfter + 2, // insertion is after insertAfter (0-based)
     };
   }
 
   // No preamble found — insert at the very beginning
-  const result = styleBlock + '\n' + source;
-  return { result, lineDelta: result.split('\n').length - oldLineCount, lineShiftFrom: 1 };
+  while (lines.length > 0 && lines[0].trim() === '') lines.shift();
+  const separatorBeforeNextDirective = lines.length > 0 ? [''] : [];
+  const resultLines = [...styleLines, ...separatorBeforeNextDirective, ...lines];
+  return {
+    result: resultLines.join('\n'),
+    lineDelta: resultLines.length - oldLineCount,
+    lineShiftFrom: 1,
+  };
 }
 
 /**

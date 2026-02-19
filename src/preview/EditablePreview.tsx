@@ -8,6 +8,7 @@ import { IFRAME_DARK_CSS } from './iframe-dark-css';
 import { ACTIVE_BLOCK_CSS, STYLE_PICK_CSS, syncActiveBlock, bindBlockClicks, setStylePickClass, bindStylePickHover, bindStylePickClick } from './iframe-highlight';
 import { queryComputedStyles } from './computed-styles';
 import { morphIframeContent } from './iframe-morph';
+import { EDITOR_DOCUMENT_MAX_WIDTH } from '../store/compile-config';
 
 interface EditablePreviewProps {
   onSyncError: (error: string | null) => void;
@@ -26,7 +27,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   const setComputedStyles = useEditorStore((s) => s.setComputedStyles);
   const theme = useEditorStore((s) => s.theme);
   const stylePickMode = useEditorStore((s) => s.stylePickMode);
-  const stylePopup = useEditorStore((s) => s.stylePopup);
+  const styleSelection = useEditorStore((s) => s.styleSelection);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isEditingRef = useRef(false);
   const lastHtmlRef = useRef('');
@@ -239,7 +240,11 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
 
       if (source !== latestSource) {
         try {
-          const testResult = mkly(source, { kits: MKLY_KITS, sourceMap: true });
+          const testResult = mkly(source, {
+            kits: MKLY_KITS,
+            sourceMap: true,
+            maxWidth: EDITOR_DOCUMENT_MAX_WIDTH,
+          });
           const fatalErrors = testResult.errors.filter(e => e.severity === 'error');
           if (fatalErrors.length > 0) {
             const details = fatalErrors.map(e => `[line ${e.line}] ${e.message}`).join('; ');
@@ -311,12 +316,12 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
   useEffect(() => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
-    const styleTarget = stylePopup
+    const styleTarget = styleSelection
       ? {
-          blockType: stylePopup.blockType,
-          target: stylePopup.target,
-          targetIndex: stylePopup.targetIndex,
-          selectionId: stylePopup.selectionId,
+          blockType: styleSelection.blockType,
+          target: styleSelection.target,
+          targetIndex: styleSelection.targetIndex,
+          selectionId: styleSelection.selectionId,
         }
       : null;
     syncActiveBlock(doc, activeBlockLine, focusOrigin, 'edit', focusIntent, scrollLock, styleTarget, cursorLine, selectionId);
@@ -327,7 +332,7 @@ export function EditablePreview({ onSyncError }: EditablePreviewProps) {
     // updated DOM. Without this, focusBlock() called before compile finishes would
     // highlight the wrong block (stale line numbers) and the morph would preserve it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBlockLine, cursorLine, selectionId, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, stylePopup, html]);
+  }, [activeBlockLine, cursorLine, selectionId, focusOrigin, focusIntent, scrollLock, focusVersion, setComputedStyles, styleSelection, html]);
 
   // Style pick mode: bind/unbind hover and click handlers.
   // Depends on `html` so handlers are re-bound after every iframe morph/rewrite,

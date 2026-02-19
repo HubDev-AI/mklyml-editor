@@ -6,6 +6,7 @@ import { emailPlugin } from '@mklyml/plugins/email';
 import { useEditorStore } from './editor-store';
 import { parseSourceStyleGraph } from './block-properties';
 import { applyCompileCompat } from './compile-compat';
+import { EDITOR_DOCUMENT_MAX_WIDTH } from './compile-config';
 
 const KITS = { core: CORE_KIT, newsletter: NEWSLETTER_KIT };
 
@@ -116,6 +117,7 @@ export function useCompile() {
           kits: KITS,
           plugins: outputMode === 'email' ? [emailPlugin()] : [],
           sourceMap: true,
+          maxWidth: EDITOR_DOCUMENT_MAX_WIDTH,
         });
         const parsedStyleGraph = parseSourceStyleGraph(source);
         const compatHtml = applyCompileCompat(source, result.html, parsedStyleGraph);

@@ -33,7 +33,7 @@ export function queryComputedStyles(
   selectedLine?: number | null,
 ): Record<string, string> {
   const blockEl = doc.querySelector(`[data-mkly-line="${line}"]`);
-  if (!blockEl || !(blockEl instanceof HTMLElement)) return {};
+  if (!blockEl || blockEl.nodeType !== 1) return {};
 
   let el: Element = blockEl;
 

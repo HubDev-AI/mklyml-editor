@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { ColorPicker } from './style-controls/ColorPicker';
 import { SpacingControl } from './style-controls/SpacingControl';
 import { AlignmentButtons } from './style-controls/AlignmentButtons';
-import { stepNumericValue } from './style-controls/numeric-step';
+import { stepNumericValueOrInit } from './style-controls/numeric-step';
 import {
   getStyleValue,
   resolveStyleSectors,
@@ -53,8 +53,12 @@ export function StyleEditor({
   const [showAdvancedBySector, setShowAdvancedBySector] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
-  }, [initialTab]);
+    if (initialTab) {
+      setActiveTab(initialTab);
+      return;
+    }
+    setActiveTab('self');
+  }, [blockType, label, initialTab]);
 
   const setStyle = useCallback((prop: string, value: string) => {
     onStyleChange(blockType, activeTab, prop, value, label);
@@ -337,9 +341,11 @@ function PropertyControl({ def, value, computed, onChange }: {
             onKeyDown={(e) => {
               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
               const direction = e.key === 'ArrowUp' ? 1 : -1;
-              const next = stepNumericValue(value, direction, {
+              const next = stepNumericValueOrInit(value, direction, {
                 shiftKey: e.shiftKey,
                 altKey: e.altKey,
+              }, {
+                fallbackSample: computed || def.placeholder,
               });
               if (!next) return;
               e.preventDefault();

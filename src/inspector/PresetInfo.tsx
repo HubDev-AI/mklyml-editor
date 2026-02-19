@@ -342,6 +342,14 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
     updatePresets(activePresets.map((p) => (p === oldName ? newName : p)));
   }, [activePresets, updatePresets]);
 
+  const stepPresetName = useCallback((currentName: string, direction: 1 | -1): string | null => {
+    if (availablePresets.length === 0) return null;
+    const idx = availablePresets.findIndex((p) => p.label === currentName);
+    if (idx === -1) return availablePresets[0]?.label ?? null;
+    const nextIdx = (idx + direction + availablePresets.length) % availablePresets.length;
+    return availablePresets[nextIdx]?.label ?? null;
+  }, [availablePresets]);
+
   const handleMakeExplicit = useCallback((presetName: string) => {
     updatePresets([presetName]);
   }, [updatePresets]);
@@ -407,6 +415,14 @@ export function PresetInfo({ activePresets, completionData }: PresetInfoProps) {
               <select
                 value={name}
                 onChange={(e) => handleChange(name, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                  const direction = e.key === 'ArrowUp' ? -1 : 1;
+                  const next = stepPresetName(name, direction);
+                  if (!next || next === name) return;
+                  e.preventDefault();
+                  handleChange(name, next);
+                }}
                 title={availablePresets.find((p) => p.label === name)?.description}
                 style={{
                   flex: 1,

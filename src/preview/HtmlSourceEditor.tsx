@@ -54,10 +54,10 @@ const VOID_TAGS = new Set([
 function findSourceSelectionFromCaret(
   text: string,
   pos: number,
-): { sourceLine: number; tag: string | null } | null {
+): { sourceLine: number; tag: string | null; styleClass: string | null } | null {
   const clamped = Math.max(0, Math.min(pos, text.length));
   const tagRe = /<\/?([a-zA-Z][\w:-]*)([^>]*)>/g;
-  const stack: Array<{ tag: string; sourceLine: number | null }> = [];
+  const stack: Array<{ tag: string; sourceLine: number | null; styleClass: string | null }> = [];
   let m: RegExpExecArray | null;
 
   while ((m = tagRe.exec(text)) !== null) {
@@ -78,9 +78,14 @@ function findSourceSelectionFromCaret(
     }
 
     const lineMatch = attrs.match(/\bdata-mkly-line="(\d+)"/);
+    const classMatch = attrs.match(/\bclass\s*=\s*(['"])(.*?)\1/);
+    const styleClass = classMatch?.[2]
+      ?.split(/\s+/)
+      ?.find((className) => /^s\d+$/.test(className)) ?? null;
     stack.push({
       tag,
       sourceLine: lineMatch ? Number(lineMatch[1]) : null,
+      styleClass,
     });
 
     if (isSelfClosing) stack.pop();
@@ -89,7 +94,7 @@ function findSourceSelectionFromCaret(
   for (let i = stack.length - 1; i >= 0; i--) {
     const frame = stack[i];
     if (frame.sourceLine !== null) {
-      return { sourceLine: frame.sourceLine, tag: frame.tag };
+      return { sourceLine: frame.sourceLine, tag: frame.tag, styleClass: frame.styleClass };
     }
   }
 
@@ -99,7 +104,7 @@ function findSourceSelectionFromCaret(
   const last = all[all.length - 1];
   const lineMatch = last.match(/\bdata-mkly-line="(\d+)"/);
   if (!lineMatch) return null;
-  return { sourceLine: Number(lineMatch[1]), tag: null };
+  return { sourceLine: Number(lineMatch[1]), tag: null, styleClass: null };
 }
 
 function findHtmlRangeForSourceLine(
@@ -207,7 +212,9 @@ export function HtmlSourceEditor({ value, onChange, readOnly = false }: HtmlSour
             if (!coords) return false;
 
             const tag = selection.tag;
-            const target = tag && !['div', 'section', 'article', 'main'].includes(tag)
+            const target = selection.styleClass
+              ? `>.${selection.styleClass}`
+              : tag && !['div', 'section', 'article', 'main'].includes(tag)
               ? `>${tag}`
               : 'self';
 

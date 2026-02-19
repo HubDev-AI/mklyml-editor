@@ -9,10 +9,11 @@ import { NoSelection } from './NoSelection';
 import { ThemeInfo } from './ThemeInfo';
 import { PresetInfo } from './PresetInfo';
 import { GlobalStyleInfo } from './GlobalStyleInfo';
+import { applyUnifiedStyleChange } from './apply-unified-style-change';
 import { useEditorStore } from '../store/editor-store';
 import { useDocumentThemes } from '../store/use-document-themes';
 import { useDocumentPresets } from '../store/use-document-presets';
-import { adjustLineForStylePatch, applyPropertyChange, applyStyleChange } from '../store/block-properties';
+import { applyPropertyChange } from '../store/block-properties';
 import { resolveBlockLine } from '../store/selection-orchestrator';
 import type { CursorBlock } from '../store/use-cursor-context';
 import type { CompletionData } from '@mklyml/core';
@@ -23,11 +24,16 @@ interface PropertyInspectorProps {
 }
 
 export function PropertyInspector({ cursorBlock, completionData }: PropertyInspectorProps) {
+  const source = useEditorStore((s) => s.source);
   const setSource = useEditorStore((s) => s.setSource);
   const activeThemes = useDocumentThemes();
   const activePresets = useDocumentPresets();
   const computedStyles = useEditorStore((s) => s.computedStyles);
   const styleGraph = useEditorStore((s) => s.styleGraph);
+  const stylePickMode = useEditorStore((s) => s.stylePickMode);
+  const styleSelection = useEditorStore((s) => s.styleSelection);
+  const activeBlockLine = useEditorStore((s) => s.activeBlockLine);
+  const selectionId = useEditorStore((s) => s.selectionId);
   const focusBlock = useEditorStore((s) => s.focusBlock);
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
@@ -48,44 +54,8 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   }, [cursorBlock, setSource, focusBlock]);
 
   const handleStyleChange = useCallback((blockType: string, target: string, prop: string, value: string, label?: string) => {
-    const currentSource = useEditorStore.getState().source;
-    const currentGraph = useEditorStore.getState().styleGraph;
-    const currentCursor = useEditorStore.getState().cursorLine;
-
-    const { newSource, newGraph, lineDelta, lineShiftFrom } = applyStyleChange(
-      currentSource,
-      currentGraph,
-      blockType,
-      target,
-      prop,
-      value,
-      label,
-    );
-
-    // Adjust cursor for line shifts in the style block
-    const adjustedCursor = adjustLineForStylePatch(currentCursor, lineDelta, lineShiftFrom);
-
-    // Apply source + focus atomically so inspector selection doesn't briefly drop
-    // while source lines are shifted by style block updates.
-    useEditorStore.setState((state) => {
-      const { blockLine, blockType: nextBlockType } = resolveBlockLine(adjustedCursor, newSource);
-      return {
-        source: newSource,
-        styleGraph: newGraph,
-        cursorLine: adjustedCursor,
-        activeBlockLine: blockLine,
-        selection: {
-          blockLine,
-          blockType: nextBlockType,
-          propertyKey: state.selection.propertyKey,
-          contentRange: null,
-        },
-        focusOrigin: 'inspector',
-        focusVersion: state.focusVersion + 1,
-        focusIntent: 'edit-property' as const,
-      };
-    });
-  }, []);
+    applyUnifiedStyleChange({ completionData, blockType, target, prop, value, label });
+  }, [completionData]);
 
   if (!cursorBlock) {
     return (
@@ -157,6 +127,30 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
   const kitName = completionData.blockKits.get(cursorBlock.type);
   const blockTargets = completionData.targets.get(cursorBlock.type);
   const blockStyleHints = completionData.styleHints.get(cursorBlock.type);
+  const selectionBlockLine = styleSelection
+    ? resolveBlockLine(styleSelection.sourceLine, source).blockLine
+    : null;
+  const selectionTargetsCurrentBlock = selectionBlockLine !== null
+    && activeBlockLine !== null
+    && selectionBlockLine === activeBlockLine;
+  const selectionMatchesActiveId = styleSelection?.selectionId !== undefined
+    && selectionId !== null
+    && styleSelection.selectionId === selectionId;
+  const syncedStyleSelection = stylePickMode
+    && styleSelection
+    && (selectionTargetsCurrentBlock || selectionMatchesActiveId)
+    ? styleSelection
+    : null;
+  const isTagTarget = syncedStyleSelection?.target.startsWith('>') ?? false;
+  const isKnownTarget = syncedStyleSelection
+    ? (
+        syncedStyleSelection.target === 'self'
+        || syncedStyleSelection.target === 'self:hover'
+        || !!blockTargets?.[syncedStyleSelection.target]
+        || isTagTarget
+      )
+    : false;
+  const inspectorInitialTab = isKnownTarget ? syncedStyleSelection?.target : undefined;
 
   return (
     <div style={{
@@ -180,12 +174,14 @@ export function PropertyInspector({ cursorBlock, completionData }: PropertyInspe
       />
       <StyleEditor
         blockType={cursorBlock.type}
-        label={cursorBlock.label}
+        label={syncedStyleSelection?.label ?? cursorBlock.label}
         styleGraph={styleGraph}
         computedStyles={computedStyles}
         targets={blockTargets}
         styleHints={blockStyleHints}
+        targetTag={syncedStyleSelection?.targetTag}
         onStyleChange={handleStyleChange}
+        initialTab={inspectorInitialTab}
         context="inspector"
       />
       {blockDocs && (
